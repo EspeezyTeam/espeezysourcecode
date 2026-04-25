@@ -6,7 +6,7 @@ export default function LandingFooter() {
   return (
     <footer style={{ padding: '6rem 2rem', borderTop: '1px solid rgba(255,255,255,0.06)', textAlign: 'center', background: '#0a0a0a', position: 'relative', zIndex: 10 }}>
        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '1.5rem', fontWeight: 700, justifyContent: 'center', marginBottom: '2rem', color: '#f3f4f6' }}>
-          <img src="/brand-logo-black-gold.png" style={{ width: '38px', height: '38px', borderRadius: '8px' }} alt="Protocol" /> Espeezy
+          <img src="/brand_logo2.svg" style={{ width: '38px', height: '38px', borderRadius: '8px', objectFit: 'contain' }} alt="Protocol" /> Espeezy
        </div>
        <p style={{ color: '#f3f4f6', fontWeight: 600, fontSize: '1rem', marginBottom: '0.5rem' }}>Built by Sospeter • Project Lead</p>
 
