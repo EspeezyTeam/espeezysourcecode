@@ -1,1 +1,27 @@
 git fetch --[no-]set-upstream
+
+
+1. git fetch origin
+
+2. git branch --set-upstream-to=origin/main
+
+3. git push -u origin main
+
+
+1. git fetch origin
+2. git checkout main
+3. git branch -D main_new (delete old local branch)
+4. git branch -m main_new (rename)
+5. git branch --set-upstream-to=origin/main main_new (set upstream)
+6. git push -u origin main_new
+
+
+
+
+1. git fetch origin
+2. git checkout main
+3. git reset --hard origin/main
+
+
+
+
