@@ -44,7 +44,7 @@
     "recharts": "^3.8.1",
     "spotify-web-api-js": "^1.5.2",
     "stripe": "^18.5.0",
-    "workflow": "^2.0.6",
+    "workflow": "^4.2.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
