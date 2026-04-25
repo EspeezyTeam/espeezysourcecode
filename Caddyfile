@@ -1,0 +1,55 @@
+﻿# ──────────────────────────────────────────────────────────────────────────────
+# espeezy.com — Caddyfile
+#
+# Set env var CADDY_DOMAIN before starting:
+#   export CADDY_DOMAIN=dev.espeezy.com
+#   docker compose -f docker-compose.dev.yml up -d
+#
+# For a raw IP (no domain), set CADDY_DOMAIN to your VPS IP.
+# Caddy auto-provisions Let's Encrypt TLS for real domains — nothing else needed.
+# ──────────────────────────────────────────────────────────────────────────────
+
+{$CADDY_DOMAIN}, www.{$CADDY_DOMAIN} {
+    # Canonical host: always serve apex domain
+    @www host www.{$CADDY_DOMAIN}
+    redir @www https://{$CADDY_DOMAIN}{uri} 308
+
+    # ── Compression ──────────────────────────────────────────────────────────
+    encode zstd gzip
+
+    # ── Security headers ─────────────────────────────────────────────────────
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+        -Server
+    }
+
+    # ── WebSocket passthrough (Next.js HMR + Supabase Realtime) ──────────────
+    @websockets {
+        header Connection *Upgrade*
+        header Upgrade websocket
+    }
+    reverse_proxy @websockets app:3000
+
+    # ── All other traffic → Next.js ───────────────────────────────────────────
+    reverse_proxy app:3000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        # Health check so Caddy waits for the app to be ready
+        health_uri /
+        health_interval 15s
+        health_timeout 5s
+    }
+
+    # ── Access logging ────────────────────────────────────────────────────────
+    log {
+        output file /data/access.log {
+            roll_size 20mb
+            roll_keep 5
+        }
+    }
+}
