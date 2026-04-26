@@ -1,0 +1,69 @@
+
+
+
+
+
+How to Log in to Your Server or Account
+
+how to log in to cPanel, WHM, Webmail, and the Command Line Interface (CLI).
+
+
+
+https://docs.cpanel.net/knowledge-base/accounts/how-to-log-in-to-your-server-or-account/
+
+
+MAIN_CODEBASE=https://github.com/EspeezyTeam
+
+
+
+SSL certificates allow your web server to identify itself to the computers that access it. This interface allows you to manage SSL certificates for your server’s services. For example, you can manage certificates for the following services:
+
+    Exim (SMTP).
+    POP3 and IMAP.
+    The cPanel services (cPanel & WHM and Webmail).
+    Your FTP server.
+
+You can use any of the following types of SSL certificates to secure your server’s services:
+
+    A free Let’s Encrypt™ certificate.
+    A certificate that you obtained from a certificate authority (CA).
+    A self-signed certificate. 
+
+
+Basic Unix Commands : https://ss64.com/bash/
+Linux documentation
+https://tldp.org/
+
+
+
+
+
+
+git fetch --[no-]set-upstream
+
+
+
+1. git fetch origin
+
+2. git branch --set-upstream-to=origin/main
+
+3. git push -u origin main
+
+
+1. git fetch origin
+2. git checkout main
+3. git branch -D main_new (delete old local branch)
+4. git branch -m main_new (rename)
+5. git branch --set-upstream-to=origin/main main_new (set upstream)
+6. git push -u origin main_new
+
+
+
+
+1. git fetch origin
+2. git checkout main
+3. git reset --hard origin/main
+
+
+
+
