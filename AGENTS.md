@@ -1,4 +1,4 @@
-# GroupFlow Agent Team — Espeezy AI Orchestration
+# Espeezy AI Agent Team
 
 ## Command Protocol
 
