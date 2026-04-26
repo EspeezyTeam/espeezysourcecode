@@ -17,12 +17,20 @@
 /.next/
 /out/
 
+# markup and supabase schema migrations
+*.md
+*.sql
+
+
 # production
 /build
 
 # misc
 .DS_Store
 *.pem
+*.mjs
+*.txt
+
 
 # debug
 npm-debug.log*

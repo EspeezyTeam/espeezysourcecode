@@ -48,8 +48,8 @@ fi
 # Check if node_modules is stale
 if git diff HEAD@{1} HEAD --name-only 2>/dev/null | grep -q "package.*json"; then
   warn "package.json changed — reinstalling deps..."
-  if [ -f "docker-compose.dev.yml" ] && docker ps | grep -q espeezy_app; then
-    docker exec espeezy_app npm ci --prefer-offline
+  if [ -f "docker-compose.dev.yml" ] && docker ps | grep -q Espeezy_app; then
+    docker exec Espeezy_app npm ci --prefer-offline
   else
     npm ci --prefer-offline
   fi
@@ -58,7 +58,7 @@ fi
 
 # Ensure app is running
 if [ -f "docker-compose.dev.yml" ]; then
-  RUNNING=$(docker inspect --format='{{.State.Running}}' espeezy_app 2>/dev/null || echo "false")
+  RUNNING=$(docker inspect --format='{{.State.Running}}' Espeezy_App 2>/dev/null || echo "false")
   if [ "$RUNNING" != "true" ]; then
     warn "App container is not running — restarting..."
     docker compose -f docker-compose.dev.yml up -d
