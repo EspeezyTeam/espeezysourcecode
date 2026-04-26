@@ -1,0 +1,35 @@
+{
+    "$schema": "https://pg-language-server.com/latest/schema.json",
+    "linter": {
+        "enabled": true,
+        "rules": {
+            "recommended": true
+        }
+    },
+    "typecheck": {
+        "enabled": true
+    },
+    "plpgsqlCheck": {
+        "enabled": true
+    },
+    "format": {
+        "enabled": true,
+        "keywordCase": "lower"
+    },
+    "db": {
+        "host": "localhost",
+        "port": 5432,
+        "username": "postgres",
+        "password": "[PASSWORD]",
+        "database": "postgres"
+    },
+    "files": {
+        "include": [
+            "supabase/**/*.sql",
+            "src/**/*.sql"
+        ],
+        "ignore": [
+            "**/test/**"
+        ]
+    }
+}

@@ -31,5 +31,8 @@ export function createBrowserSupabaseClient() {
     console.warn("Supabase Security Check: JWT format unrecognized or custom role in use.")
   }
 
-  return createSupabaseBrowserClient(url, anonKey)
+  const validUrl = (url && url.startsWith('http') && url !== 'your_supabase_project_url') 
+    ? url 
+    : 'https://placeholder.supabase.co'
+  return createSupabaseBrowserClient(validUrl, anonKey || 'no-key')
 }

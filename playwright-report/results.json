@@ -10,14 +10,18 @@
     "grep": {},
     "grepInvert": null,
     "maxFailures": 0,
-    "metadata": {},
+    "metadata": {
+      "actualWorkers": 1
+    },
     "preserveOutput": "always",
     "projects": [
       {
         "outputDir": "C:/Users/kedog/Documents/GitHub/espeezysourcecode/test-results",
         "repeatEach": 1,
         "retries": 1,
-        "metadata": {},
+        "metadata": {
+          "actualWorkers": 1
+        },
         "id": "chromium",
         "name": "chromium",
         "testDir": "C:/Users/kedog/Documents/GitHub/espeezysourcecode/tests",
@@ -31,7 +35,9 @@
         "outputDir": "C:/Users/kedog/Documents/GitHub/espeezysourcecode/test-results",
         "repeatEach": 1,
         "retries": 1,
-        "metadata": {},
+        "metadata": {
+          "actualWorkers": 1
+        },
         "id": "firefox",
         "name": "firefox",
         "testDir": "C:/Users/kedog/Documents/GitHub/espeezysourcecode/tests",
@@ -45,7 +51,9 @@
         "outputDir": "C:/Users/kedog/Documents/GitHub/espeezysourcecode/test-results",
         "repeatEach": 1,
         "retries": 1,
-        "metadata": {},
+        "metadata": {
+          "actualWorkers": 1
+        },
         "id": "webkit",
         "name": "webkit",
         "testDir": "C:/Users/kedog/Documents/GitHub/espeezysourcecode/tests",
@@ -59,7 +67,9 @@
         "outputDir": "C:/Users/kedog/Documents/GitHub/espeezysourcecode/test-results",
         "repeatEach": 1,
         "retries": 1,
-        "metadata": {},
+        "metadata": {
+          "actualWorkers": 1
+        },
         "id": "security",
         "name": "security",
         "testDir": "C:/Users/kedog/Documents/GitHub/espeezysourcecode/tests",
@@ -102,25 +112,218 @@
     "workers": 2,
     "webServer": null
   },
-  "suites": [],
-  "errors": [
+  "suites": [
     {
-      "message": "TypeError: Invalid URL",
-      "stack": "TypeError: Invalid URL\n    at Object.<anonymous> (C:\\Users\\kedog\\Documents\\GitHub\\espeezysourcecode\\tests\\full-user-journey.spec.ts:47:36)",
-      "location": {
-        "file": "C:\\Users\\kedog\\Documents\\GitHub\\espeezysourcecode\\tests\\full-user-journey.spec.ts",
-        "column": 36,
-        "line": 47
-      },
-      "snippet": "\u001b[90m   at \u001b[39mfull-user-journey.spec.ts:47\n\n\u001b[0m \u001b[90m 45 |\u001b[39m \u001b[36mconst\u001b[39m \u001b[33mSERVICE_ROLE_KEY\u001b[39m \u001b[33m=\u001b[39m \u001b[33mENV\u001b[39m[\u001b[32m'SUPABASE_SERVICE_ROLE_KEY'\u001b[39m] \u001b[33m||\u001b[39m process\u001b[33m.\u001b[39menv\u001b[33m.\u001b[39m\u001b[33mSUPABASE_SERVICE_ROLE_KEY\u001b[39m \u001b[33m||\u001b[39m \u001b[32m''\u001b[39m\n \u001b[90m 46 |\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 47 |\u001b[39m \u001b[36mconst\u001b[39m \u001b[33mPROJECT_REF\u001b[39m \u001b[33m=\u001b[39m \u001b[33mSUPABASE_URL\u001b[39m \u001b[33m?\u001b[39m \u001b[36mnew\u001b[39m \u001b[33mURL\u001b[39m(\u001b[33mSUPABASE_URL\u001b[39m)\u001b[33m.\u001b[39mhostname\u001b[33m.\u001b[39msplit(\u001b[32m'.'\u001b[39m)[\u001b[35m0\u001b[39m] \u001b[33m:\u001b[39m \u001b[32m'placeholder'\u001b[39m\n \u001b[90m    |\u001b[39m                                    \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 48 |\u001b[39m \u001b[36mconst\u001b[39m \u001b[33mCOOKIE_KEY\u001b[39m \u001b[33m=\u001b[39m \u001b[32m`sb-${PROJECT_REF}-auth-token`\u001b[39m\n \u001b[90m 49 |\u001b[39m \u001b[36mconst\u001b[39m \u001b[33mMAX_CHUNK_SIZE\u001b[39m \u001b[33m=\u001b[39m \u001b[35m3180\u001b[39m \u001b[90m// from @supabase/ssr chunker.js (URL-encoded length)\u001b[39m\n \u001b[90m 50 |\u001b[39m\u001b[0m"
+      "title": "full-user-journey.spec.ts",
+      "file": "full-user-journey.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Espeezy — Full User Journey",
+          "file": "full-user-journey.spec.ts",
+          "line": 307,
+          "column": 6,
+          "specs": [
+            {
+              "title": "sign up → team → tasks → analytics → export → delete account",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 300000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "timedOut",
+                      "duration": 301795,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 300000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 300000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 300000ms exceeded.\u001b[39m"
+                        },
+                        {
+                          "location": {
+                            "file": "C:\\Users\\kedog\\Documents\\GitHub\\espeezysourcecode\\tests\\full-user-journey.spec.ts",
+                            "column": 16,
+                            "line": 427
+                          },
+                          "message": "Error: page.click: Test timeout of 300000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button:has-text(\"Update Settings\")')\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"submit\" class=\"btn btn-primary\">Update Settings</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div class=\"jsx-8f92e2d12508207d onboarding-overlay\">…</div> intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div class=\"jsx-8f92e2d12508207d onboarding-overlay\">…</div> intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    429 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m        - element is visible, enabled and stable\u001b[22m\n\u001b[2m        - scrolling into view if needed\u001b[22m\n\u001b[2m        - done scrolling\u001b[22m\n\u001b[2m        - <div class=\"jsx-8f92e2d12508207d onboarding-overlay\">…</div> intercepts pointer events\u001b[22m\n\u001b[2m      - retrying click action\u001b[22m\n\u001b[2m        - waiting 500ms\u001b[22m\n\u001b[2m    63 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m       - element is visible, enabled and stable\u001b[22m\n\u001b[2m       - scrolling into view if needed\u001b[22m\n\u001b[2m       - done scrolling\u001b[22m\n\u001b[2m       - <div role=\"dialog\" aria-modal=\"true\">…</div> intercepts pointer events\u001b[22m\n\u001b[2m     - retrying click action\u001b[22m\n\u001b[2m       - waiting 500ms\u001b[22m\n\n\n  425 |     await fullNameInput.clear()\n  426 |     await fullNameInput.fill(FULL_NAME)\n> 427 |\n      | ^\n  428 |     // Click Save / Update Settings\n  429 |     await page.click('button:has-text(\"Update Settings\")')\n  430 |     await expect(page.locator('text=Profile Synchronized')).toBeVisible({ timeout: 10_000 })\n    at C:\\Users\\kedog\\Documents\\GitHub\\espeezysourcecode\\tests\\full-user-journey.spec.ts:427:16"
+                        }
+                      ],
+                      "stdout": [
+                        {
+                          "text": "[1/10] Creating confirmed user via Supabase admin API: e2e_user_18850690@testrunner.dev\n"
+                        },
+                        {
+                          "text": "      [safeFetch] Request to: https://syydouygkbkavtpybgjj.supabase.co/auth/v1/admin/users | Mock URL: https://syydouygkbkavtpybgjj.supabase.co\n"
+                        },
+                        {
+                          "text": "      [Mock] Intercepted Node fetch to: https://syydouygkbkavtpybgjj.supabase.co/auth/v1/admin/users\n"
+                        },
+                        {
+                          "text": "      ✓ User created (id: mock-user-uuid)\n"
+                        },
+                        {
+                          "text": "      [safeFetch] Request to: https://syydouygkbkavtpybgjj.supabase.co/auth/v1/token?grant_type=password | Mock URL: https://syydouygkbkavtpybgjj.supabase.co\n"
+                        },
+                        {
+                          "text": "      [Mock] Intercepted Node fetch to: https://syydouygkbkavtpybgjj.supabase.co/auth/v1/token?grant_type=password\n"
+                        },
+                        {
+                          "text": "      ✓ Session cookies injected (userId: mock-user-uuid)\n"
+                        },
+                        {
+                          "text": "      [safeFetch] Request to: https://syydouygkbkavtpybgjj.supabase.co/rest/v1/profiles?id=eq.mock-user-uuid | Mock URL: https://syydouygkbkavtpybgjj.supabase.co\n"
+                        },
+                        {
+                          "text": "      [Mock] Intercepted Node fetch to: https://syydouygkbkavtpybgjj.supabase.co/rest/v1/profiles?id=eq.mock-user-uuid\n"
+                        },
+                        {
+                          "text": "      ✓ Profile pre-populated (full_name + avatar_url set to skip onboarding)\n"
+                        },
+                        {
+                          "text": "      post-goto URL: http://localhost:3000/dashboard\n"
+                        },
+                        {
+                          "text": "[1/10] ✓ Signed in successfully (session injection)\n"
+                        },
+                        {
+                          "text": "[2/10] Updating profile settings\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-26T15:54:10.762Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Users\\kedog\\Documents\\GitHub\\espeezysourcecode\\test-results\\full-user-journey-Espeezy--5a355-s-→-export-→-delete-account-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "C:\\Users\\kedog\\Documents\\GitHub\\espeezysourcecode\\test-results\\full-user-journey-Espeezy--5a355-s-→-export-→-delete-account-chromium\\error-context.md"
+                        }
+                      ]
+                    },
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 384036,
+                      "error": {
+                        "message": "TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://localhost:3000/dashboard\", waiting until \"domcontentloaded\"\u001b[22m\n",
+                        "stack": "TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://localhost:3000/dashboard\", waiting until \"domcontentloaded\"\u001b[22m\n\n    at C:\\Users\\kedog\\Documents\\GitHub\\espeezysourcecode\\tests\\full-user-journey.spec.ts:406:16",
+                        "location": {
+                          "file": "C:\\Users\\kedog\\Documents\\GitHub\\espeezysourcecode\\tests\\full-user-journey.spec.ts",
+                          "column": 16,
+                          "line": 406
+                        },
+                        "snippet": "\u001b[0m \u001b[90m 404 |\u001b[39m     }\n \u001b[90m 405 |\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 406 |\u001b[39m     \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mgoto(\u001b[32m'/dashboard'\u001b[39m\u001b[33m,\u001b[39m { waitUntil\u001b[33m:\u001b[39m \u001b[32m'domcontentloaded'\u001b[39m\u001b[33m,\u001b[39m timeout\u001b[33m:\u001b[39m \u001b[35m45\u001b[39m_000 })\n \u001b[90m     |\u001b[39m                \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 407 |\u001b[39m     console\u001b[33m.\u001b[39mlog(\u001b[32m`      post-goto URL: ${page.url()}`\u001b[39m)\n \u001b[90m 408 |\u001b[39m     \u001b[36mawait\u001b[39m waitForDashboard(page)\n \u001b[90m 409 |\u001b[39m     \u001b[36mawait\u001b[39m dismissDevOverlay(page)\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "C:\\Users\\kedog\\Documents\\GitHub\\espeezysourcecode\\tests\\full-user-journey.spec.ts",
+                            "column": 16,
+                            "line": 406
+                          },
+                          "message": "TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://localhost:3000/dashboard\", waiting until \"domcontentloaded\"\u001b[22m\n\n\n  404 |     }\n  405 |\n> 406 |     await page.goto('/dashboard', { waitUntil: 'domcontentloaded', timeout: 45_000 })\n      |                ^\n  407 |     console.log(`      post-goto URL: ${page.url()}`)\n  408 |     await waitForDashboard(page)\n  409 |     await dismissDevOverlay(page)\n    at C:\\Users\\kedog\\Documents\\GitHub\\espeezysourcecode\\tests\\full-user-journey.spec.ts:406:16"
+                        },
+                        {
+                          "message": "\u001b[31mTearing down \"context\" exceeded the test timeout of 300000ms.\u001b[39m"
+                        },
+                        {
+                          "message": "Error: browserContext.close: Test ended.\nBrowser logs:\n\n<launching> C:\\Users\\kedog\\AppData\\Local\\ms-playwright\\chromium_headless_shell-1217\\chrome-headless-shell-win64\\chrome-headless-shell.exe --disable-field-trial-config --disable-background-networking --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-back-forward-cache --disable-breakpad --disable-client-side-phishing-detection --disable-component-extensions-with-background-pages --disable-component-update --no-default-browser-check --disable-default-apps --disable-dev-shm-usage --disable-extensions --disable-features=AvoidUnnecessaryBeforeUnloadCheckSync,BoundaryEventDispatchTracksNodeRemoval,DestroyProfileOnBrowserClose,DialMediaRouteProvider,GlobalMediaControls,HttpsUpgrades,LensOverlay,MediaRouter,PaintHolding,ThirdPartyStoragePartitioning,Translate,AutoDeElevate,RenderDocument,OptimizationHints --enable-features=CDPScreenshotNewSurface --allow-pre-commit-input --disable-hang-monitor --disable-ipc-flooding-protection --disable-popup-blocking --disable-prompt-on-repost --disable-renderer-backgrounding --force-color-profile=srgb --metrics-recording-only --no-first-run --password-store=basic --use-mock-keychain --no-service-autorun --export-tagged-pdf --disable-search-engine-choice-screen --unsafely-disable-devtools-self-xss-warnings --edge-skip-compat-layer-relaunch --enable-automation --disable-infobars --disable-search-engine-choice-screen --disable-sync --enable-unsafe-swiftshader --headless --hide-scrollbars --mute-audio --blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4 --no-sandbox --user-data-dir=C:\\Users\\kedog\\AppData\\Local\\Temp\\playwright_chromiumdev_profile-3iq3oo --remote-debugging-pipe --no-startup-window\n<launched> pid=19352\n[pid=19352] <gracefully close start>\n[pid=19352] <kill>\n[pid=19352] <will force kill>\n[pid=19352] taskkill stderr: ERROR: The process with PID 18944 (child process of PID 19352) could not be terminated.\r\nReason: There is no running instance of the task.\r\r\nERROR: The process with PID 19352 (child process of PID 19088) could not be terminated.\r\nReason: There is no running instance of the task.\r\r\n"
+                        }
+                      ],
+                      "stdout": [
+                        {
+                          "text": "[1/10] Creating confirmed user via Supabase admin API: e2e_user_19191608@testrunner.dev\n"
+                        },
+                        {
+                          "text": "      [safeFetch] Request to: https://syydouygkbkavtpybgjj.supabase.co/auth/v1/admin/users | Mock URL: https://syydouygkbkavtpybgjj.supabase.co\n"
+                        },
+                        {
+                          "text": "      [Mock] Intercepted Node fetch to: https://syydouygkbkavtpybgjj.supabase.co/auth/v1/admin/users\n"
+                        },
+                        {
+                          "text": "      ✓ User created (id: mock-user-uuid)\n"
+                        },
+                        {
+                          "text": "      [safeFetch] Request to: https://syydouygkbkavtpybgjj.supabase.co/auth/v1/token?grant_type=password | Mock URL: https://syydouygkbkavtpybgjj.supabase.co\n"
+                        },
+                        {
+                          "text": "      [Mock] Intercepted Node fetch to: https://syydouygkbkavtpybgjj.supabase.co/auth/v1/token?grant_type=password\n"
+                        },
+                        {
+                          "text": "      ✓ Session cookies injected (userId: mock-user-uuid)\n"
+                        },
+                        {
+                          "text": "      [safeFetch] Request to: https://syydouygkbkavtpybgjj.supabase.co/rest/v1/profiles?id=eq.mock-user-uuid | Mock URL: https://syydouygkbkavtpybgjj.supabase.co\n"
+                        },
+                        {
+                          "text": "      [Mock] Intercepted Node fetch to: https://syydouygkbkavtpybgjj.supabase.co/rest/v1/profiles?id=eq.mock-user-uuid\n"
+                        },
+                        {
+                          "text": "      ✓ Profile pre-populated (full_name + avatar_url set to skip onboarding)\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 1,
+                      "startTime": "2026-04-26T15:59:52.054Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "C:\\Users\\kedog\\Documents\\GitHub\\espeezysourcecode\\test-results\\full-user-journey-Espeezy--5a355-s-→-export-→-delete-account-chromium-retry1\\error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "C:\\Users\\kedog\\Documents\\GitHub\\espeezysourcecode\\test-results\\full-user-journey-Espeezy--5a355-s-→-export-→-delete-account-chromium-retry1\\trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "C:\\Users\\kedog\\Documents\\GitHub\\espeezysourcecode\\tests\\full-user-journey.spec.ts",
+                        "column": 16,
+                        "line": 406
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "dfcefdfee87bde66c8f7-38051bfdb22645713482",
+              "file": "full-user-journey.spec.ts",
+              "line": 317,
+              "column": 7
+            }
+          ]
+        }
+      ]
     }
   ],
+  "errors": [],
   "stats": {
-    "startTime": "2026-04-26T14:46:17.192Z",
-    "duration": 1435.637999999999,
+    "startTime": "2026-04-26T15:53:21.624Z",
+    "duration": 894983.402,
     "expected": 0,
     "skipped": 0,
-    "unexpected": 0,
+    "unexpected": 1,
     "flaky": 0
   }
 }

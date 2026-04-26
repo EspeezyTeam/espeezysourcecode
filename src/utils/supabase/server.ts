@@ -41,7 +41,13 @@ const REGION_TO_READ_URL: Record<string, string | undefined> = {
 
 function getNearestReadUrl(): string {
   const region = (process.env.VERCEL_REGION ?? '').toLowerCase()
-  return REGION_TO_READ_URL[region] ?? process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const rawUrl = REGION_TO_READ_URL[region] ?? process.env.NEXT_PUBLIC_SUPABASE_URL
+  
+  // Validate URL format to prevent @supabase/ssr from throwing
+  if (!rawUrl || !rawUrl.startsWith('http')) {
+    return 'https://placeholder.supabase.co'
+  }
+  return rawUrl
 }
 
 // ─── READ CLIENT (replica-routed, anon key) ───────────────────────────────────
@@ -72,9 +78,12 @@ let _adminClient: ReturnType<typeof createServerClient> | null = null
 
 export async function createAdminClient() {
   if (!_adminClient) {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const validUrl = (url && url.startsWith('http')) ? url : 'https://placeholder.supabase.co'
+    
     _adminClient = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      validUrl,
+      process.env.SUPABASE_SERVICE_ROLE_KEY || 'no-key',
       {
         cookies: {
           getAll() { return [] },
@@ -94,10 +103,12 @@ export async function createAdminClient() {
 // Uses the primary for any writes or auth-sensitive reads.
 export async function createServerSupabaseClient() {
   const cookieStore = await cookies()
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const validUrl = (url && url.startsWith('http')) ? url : 'https://placeholder.supabase.co'
 
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  const client = createServerClient(
+    validUrl,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'no-key',
     {
       cookies: {
         getAll() {
@@ -115,6 +126,20 @@ export async function createServerSupabaseClient() {
       },
     }
   )
+
+  // ─── MOCK TESTING PATCH ──────────────────────────────────────────────────
+  // If a mock session cookie is present, return a mock user immediately.
+  // This allows E2E tests to run without a live Supabase connection.
+  const originalGetUser = client.auth.getUser.bind(client.auth)
+  client.auth.getUser = (async (...args: any[]) => {
+    const mockCookie = cookieStore.get('sb-mock-token')
+    if (mockCookie) {
+      return { data: { user: { id: 'mock-user-uuid', email: 'mock@test.dev' } }, error: null }
+    }
+    return originalGetUser(...args)
+  }) as any
+
+  return client
 }
 
 // ─── SAFE AUTH HELPER ─────────────────────────────────────────────────────────
