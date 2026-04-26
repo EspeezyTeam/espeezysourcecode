@@ -84,7 +84,7 @@ function CountBlock({ value, label }: { value: number; label: string }) {
 const NAV_LINKS = [
   { href: '/', label: 'Home' },
   { href: '#features', label: 'Features' },
-  { href: 'https://github.com/EspeezyTeam/espeezysourcecode', label: 'GitHub' },
+  { href: '#developers', label: 'Developers' },
   { href: '/login', label: 'Sign In' },
 ]
 

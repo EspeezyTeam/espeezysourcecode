@@ -117,7 +117,6 @@ export default function AdminLaunchCenter({
             Changes reflect live on{' '}
             <a
               href="/preregister"
-              target="_blank"
               rel="noreferrer"
               style={{ color: '#10b981', textDecoration: 'none' }}
             >
@@ -257,7 +256,6 @@ export default function AdminLaunchCenter({
         {/* External link: preregister page */}
         <a
           href="/preregister"
-          target="_blank"
           rel="noreferrer"
           style={externalLinkStyle}
         >
@@ -267,7 +265,6 @@ export default function AdminLaunchCenter({
         {/* External link: fund page */}
         <a
           href="/fund"
-          target="_blank"
           rel="noreferrer"
           style={externalLinkStyle}
         >
