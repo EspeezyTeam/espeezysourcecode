@@ -15,7 +15,7 @@
 #   Set CADDY_DOMAIN env var to your domain (e.g. dev.espeezy.com)
 #   or leave unset for plain HTTP on the VPS IP.
 # ──────────────────────────────────────────────────────────────────────────────
-name: espeezy-dev
+name: Espeezy-App
 
 services:
   # ── Next.js dev server ────────────────────────────────────────────────────
@@ -23,7 +23,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
-    container_name: espeezy_app
+    container_name: Espeezy_App
     restart: unless-stopped
     ports:
       - "3000:3000"
@@ -56,7 +56,7 @@ services:
   # ── Caddy — auto-HTTPS reverse proxy ─────────────────────────────────────
   caddy:
     image: caddy:2-alpine
-    container_name: espeezy_caddy
+    container_name: espeezy_caddy_cache
     restart: unless-stopped
     ports:
       - "80:80"
