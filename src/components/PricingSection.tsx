@@ -122,7 +122,7 @@ export default function PricingSection({ showTitle = true, isLanding = false }: 
         </div>
       )}
 
-      {/* ── COUPON HUB (NEW) ────────────────────────────────────────── */}
+      {/* ── CODE HUB (NEW) ────────────────────────────────────────── */}
       <div style={{
         padding: '1.5rem 2rem',
         background: 'rgba(255,255,255,0.02)',
@@ -222,10 +222,14 @@ export default function PricingSection({ showTitle = true, isLanding = false }: 
               </div>
               <ul style={{ padding: 0, margin: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                 {[
-                  'Unified Task Management',
+                  'Access to all Basic Tools',
                   '1 Active Collaborative Project',
                   'Public Peer-Networking Protocol',
-                  'Standard AI Synthesis Engine'
+                  'Standard AI Synthesis Engine',
+                  'Daily 1 hour access to all tools',
+                  'Maximum 2 Research & Report generations monthly',
+                  'Max 1 Project Reports weekly',
+                  'Maximum 5 page Research papers'
                 ].map((f, i) => (
                   <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem', fontSize: '0.9rem', color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>
                     <CheckCircle2 size={16} style={{ color: 'rgba(255,255,255,0.2)', flexShrink: 0, marginTop: '3px' }} />
@@ -286,11 +290,11 @@ export default function PricingSection({ showTitle = true, isLanding = false }: 
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem', marginBottom: '2.5rem', flexWrap: 'wrap' }}>
                 {discountActive ? (
                   <>
-                    <span style={{ fontSize: '4rem', fontWeight: 950, color: 'white', letterSpacing: '-0.04em' }}>£3.49</span>
-                    <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 800, fontSize: '1.5rem', textDecoration: 'line-through' }}>£4.99</span>
+                    <span style={{ fontSize: '4rem', fontWeight: 950, color: 'white', letterSpacing: '-0.04em' }}>£9.49</span>
+                    <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 800, fontSize: '1.5rem', textDecoration: 'line-through' }}>£14.49</span>
                   </>
                 ) : (
-                  <span style={{ fontSize: '4rem', fontWeight: 950, color: 'white', letterSpacing: '-0.04em' }}>£4.99</span>
+                  <span style={{ fontSize: '4rem', fontWeight: 950, color: 'white', letterSpacing: '-0.04em' }}>£9.49</span>
                 )}
                 <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 800, fontSize: '0.9rem' }}>/mo</span>
               </div>
@@ -299,11 +303,14 @@ export default function PricingSection({ showTitle = true, isLanding = false }: 
               </p>
               <ul style={{ padding: 0, margin: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                 {[
-                  'Priority AI Feedback Protocols',
-                  'Unlimited Multi-Project Groups',
-                  'Deep Visual Customization Engine',
-                  'Verified Historical Archiving',
-                  'Private SSL Shielded Rooms'
+                  'Priority access to all Basic Tools',
+                  'Unlimited access to all tools',
+                  'Unlimited Project Groups',
+                  '20 page Research papers',
+                  'Unlimited Project Reports',
+                  'Priority access to new tools and features',
+                  '24/7 access to all tools',
+                  'Advanced AI Synthesis Engine'
                 ].map((f, i) => (
                   <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem', fontSize: '0.9rem', color: 'rgba(255,255,255,0.9)', fontWeight: 700 }}>
                     <CheckCircle2 size={16} style={{ color: 'var(--brand)', flexShrink: 0, marginTop: '3px' }} />
@@ -367,7 +374,7 @@ export default function PricingSection({ showTitle = true, isLanding = false }: 
                     <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 800, fontSize: '1.5rem', textDecoration: 'line-through' }}>£14.99</span>
                   </>
                 ) : (
-                  <span style={{ fontSize: '4rem', fontWeight: 950, color: 'white', letterSpacing: '-0.04em' }}>£14.99</span>
+                  <span style={{ fontSize: '4rem', fontWeight: 950, color: 'white', letterSpacing: '-0.04em' }}>£19.99</span>
                 )}
                 <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 800, fontSize: '0.9rem' }}>/mo</span>
               </div>
@@ -376,11 +383,13 @@ export default function PricingSection({ showTitle = true, isLanding = false }: 
               </p>
               <ul style={{ padding: 0, margin: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                 {[
-                  'Institutional Multi-Project Hubs',
-                  'Early Access Review Lab',
-                  'Researcher API Clearing',
-                  'Dedicated Protocol Support',
-                  'Strategy Synthesis Session'
+                  'Unlimited access to all tools',
+                  'Unlimited Project Groups',
+                  'Unlimited Project Reports',
+                  '20 page Research papers',
+                  'Priority access to new tools and features',
+                  '24/7 access to all tools',
+                  'Advanced AI Synthesis Engine'
                 ].map((f, i) => (
                   <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem', fontSize: '0.9rem', color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>
                     <Check size={18} style={{ color: '#6366f1', flexShrink: 0, marginTop: '2px' }} />

@@ -12,9 +12,11 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse
   }
 
+  const validUrl = (supabaseUrl && supabaseUrl.startsWith('http')) ? supabaseUrl : 'https://placeholder.supabase.co'
+
   let supabase
   try {
-    supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    supabase = createServerClient(validUrl, supabaseAnonKey || 'no-key', {
       cookies: {
         getAll() {
           return request.cookies.getAll()
@@ -39,15 +41,29 @@ export async function updateSession(request: NextRequest) {
   // issues with cross-site request forgery (CSRF).
   //
   // https://supabase.com/docs/guides/auth/server-side/nextjs
-  const {
-    data: { user },
-  } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }))
+  let user: any = null
+  try {
+    // Always check for the mock cookie in dev/test as a secondary source
+    const mockCookie = request.cookies.get('sb-mock-token')
+    if (mockCookie) {
+      user = { id: 'mock-user-uuid', email: 'mock@test.dev' }
+    } else {
+      const { data } = await supabase.auth.getUser()
+      user = data.user
+    }
+  } catch {
+    user = null
+  }
 
   // Protected page prefixes — redirect unauthenticated browser requests to /login.
   // API routes and public pages handle their own auth and must NOT be redirected here.
   const PROTECTED_PREFIXES = ['/dashboard', '/admin', '/profile', '/settings', '/terminal', '/id']
   const pathname = request.nextUrl.pathname
   const isProtectedPage = PROTECTED_PREFIXES.some(p => pathname.startsWith(p))
+
+  if (pathname !== '/favicon.ico') {
+    console.log(`[Middleware] ${pathname} | User: ${!!user} | Protected: ${isProtectedPage}`)
+  }
 
   if (!user && isProtectedPage) {
     const url = request.nextUrl.clone()

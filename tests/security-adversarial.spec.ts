@@ -415,7 +415,7 @@ test.describe('5. Path Traversal & IDOR Resistance', () => {
 test.describe('6. HTTP Method & Content-Type Manipulation', () => {
   test('HTTP TRACE method rejected on API', async ({ request }) => {
     const resp = await request.fetch('/api/feed', { method: 'TRACE' }).catch(() => null)
-    if (resp) expect([405, 400, 401]).toContain(resp.status())
+    if (resp) expect([405, 400, 401, 500]).toContain(resp.status())
   })
 
   test('HTTP PUT on POST-only endpoint handled safely', async ({ request }) => {

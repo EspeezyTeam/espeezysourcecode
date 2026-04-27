@@ -254,6 +254,7 @@ curl -I https://espeezy.com
 curl -I https://espeezy.com/terms
 curl -I https://espeezy.com/privacy
 curl -I https://espeezy.com/contact
+curl -I https://espeezy.com/
 curl -I https://espeezy.com/robots.txt
 ```
 
@@ -369,11 +370,11 @@ Definition of done:
 Add to `~/.bashrc` on WSL/VPS:
 
 ```bash
-alias gf='cd ~/groupflow'
-alias gfb='cd ~/groupflow && npm ci && npx tsc --noEmit && npm run build'
-alias gft='cd ~/groupflow && npx playwright test --reporter=list'
-alias gfd='cd ~/groupflow && docker compose -f docker-compose.dev.yml up -d --build'
-alias gfl='docker logs -f espeezy_app'
+alias gf='cd ~/espeezy'
+alias gfb='cd ~/espeezy && npm ci && npx tsc --noEmit && npm run build'
+alias gft='cd ~/espeezy && npx playwright test --reporter=list'
+alias gfd='cd ~/espeezy && docker compose -f docker-compose.dev.yml up -d --build'
+alias gfl='docker logs -f Espeezy_App'
 alias gfs='bash /opt/espeezy/scripts/agent-pull.sh'
 ```
 
@@ -423,7 +424,7 @@ Run in this order:
 3. `npx tsc --noEmit`
 4. `npm run build`
 5. `curl -I https://espeezy.com`
-6. `docker logs --tail 80 espeezy_app`
+6. `docker logs --tail 80 Espeezy_App`
 
 If all are healthy, proceed.
 

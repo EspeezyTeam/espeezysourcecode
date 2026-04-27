@@ -24,10 +24,7 @@ export default defineConfig({
     video: 'retain-on-failure',
   },
   projects: [
-    {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
-    },
+
     {
       name: 'firefox',
       use: { ...devices['Desktop Firefox'] },
@@ -36,11 +33,12 @@ export default defineConfig({
       name: 'webkit',
       use: { ...devices['Desktop Safari'] },
     },
+
     // Security suite — runs only adversarial tests, Chromium only for speed
     {
       name: 'security',
       testMatch: /security-adversarial\.spec\.ts/,
-      use: { ...devices['Desktop Chrome'] },
+      use: { ...devices['Desktop Firefox'] },
     },
   ],
 });

@@ -47,12 +47,12 @@ export default function LandingHeader({ navMenus }: LandingHeaderProps) {
   }
 
   return (
-    <header 
-      style={{ 
+    <header
+      style={{
         height: '64px',
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'space-between', 
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
         padding: '0 2rem',
         position: 'sticky',
         top: 0,
@@ -66,38 +66,38 @@ export default function LandingHeader({ navMenus }: LandingHeaderProps) {
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '2.5rem' }}>
         {/* Brand Identity */}
-        <div 
-          style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer', transition: 'opacity 0.2s ease' }} 
+        <div
+          style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer', transition: 'opacity 0.2s ease' }}
           onClick={() => typeof window !== 'undefined' && window.scrollTo({ top: 0, behavior: 'smooth' })}
         >
-           <div style={{ width: '28px', height: '28px', background: '#10b981', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 15px rgba(16, 185, 129, 0.2)' }}>
-               <img src="/brand_logo2.svg" style={{ width: '22px', height: '22px', objectFit: 'contain' }} alt="Logo" />
-           </div>
-           <span style={{ fontSize: '1rem', fontWeight: 650, letterSpacing: '-0.02em', color: '#f3f4f6' }}>Espeezy</span>
+          <div style={{ width: '28px', height: '28px', background: '#10b981', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 15px rgba(16, 185, 129, 0.2)' }}>
+            <img src="/brand_logo2.svg" style={{ width: '22px', height: '22px', objectFit: 'contain' }} alt="Logo" />
+          </div>
+          <span style={{ fontSize: '1rem', fontWeight: 650, letterSpacing: '-0.02em', color: '#f3f4f6' }}>Espeezy</span>
         </div>
 
         {/* Architectural Navigation - Desktop Only */}
-        <nav 
+        <nav
           style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
           className="hide-mobile-flex"
         >
           {Object.keys(navMenus).map((key) => (
-            <div 
-              key={key} 
-              className="nav-item-wrapper" 
+            <div
+              key={key}
+              className="nav-item-wrapper"
               style={{ position: 'relative' }}
               onMouseEnter={() => setActiveDropdown(key)}
             >
-              <button 
+              <button
                 aria-expanded={activeDropdown === key}
                 aria-haspopup="true"
-                style={{ 
-                  background: 'none', 
-                  border: 'none', 
-                  padding: '0.5rem 0.75rem', 
-                  color: activeDropdown === key ? '#f3f4f6' : '#9ca3af', 
-                  fontWeight: 500, 
-                  fontSize: '0.875rem', 
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: '0.5rem 0.75rem',
+                  color: activeDropdown === key ? '#f3f4f6' : '#9ca3af',
+                  fontWeight: 500,
+                  fontSize: '0.875rem',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
@@ -124,7 +124,7 @@ export default function LandingHeader({ navMenus }: LandingHeaderProps) {
                       zIndex: 1100
                     }}
                   >
-                    <div 
+                    <div
                       style={{
                         width: '560px',
                         background: '#111111',
@@ -144,7 +144,7 @@ export default function LandingHeader({ navMenus }: LandingHeaderProps) {
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                             {category.items.map((item: NavItem) => (
-                              <Link 
+                              <Link
                                 key={item.id}
                                 href={item.href}
                                 className="nav-link-pro"
@@ -175,10 +175,10 @@ export default function LandingHeader({ navMenus }: LandingHeaderProps) {
               </AnimatePresence>
             </div>
           ))}
-          <Link 
-            href="/#pricing" 
-            style={{ padding: '0.5rem 0.75rem', color: '#9ca3af', fontWeight: 500, fontSize: '0.875rem', textDecoration: 'none', transition: 'color 0.2s ease' }} 
-            onMouseEnter={(e) => (e.currentTarget.style.color = '#f3f4f6')} 
+          <Link
+            href="/#pricing"
+            style={{ padding: '0.5rem 0.75rem', color: '#9ca3af', fontWeight: 500, fontSize: '0.875rem', textDecoration: 'none', transition: 'color 0.2s ease' }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = '#f3f4f6')}
             onMouseLeave={(e) => (e.currentTarget.style.color = '#9ca3af')}
             onClick={(e) => handleNavClick(e, '/#pricing')}
           >
@@ -189,82 +189,81 @@ export default function LandingHeader({ navMenus }: LandingHeaderProps) {
       </div>
 
       {/* Global Utilities & Authentication - Desktop Only */}
-      <div 
+      <div
         style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}
         className="hide-mobile-flex"
       >
-        <a 
-           href="mailto:support@espeezy.com" 
-           title="Send Feedback"
-           style={{ 
-             background: 'rgba(16, 185, 129, 0.05)', 
-             border: '1px solid rgba(16, 185, 129, 0.1)', 
-             borderRadius: '6px', 
-             padding: '0.4rem 0.6rem', 
-             color: '#10b981',
-             display: 'flex',
-             alignItems: 'center',
-             gap: '0.5rem',
-             cursor: 'pointer',
-             transition: 'all 0.2s ease',
-             textDecoration: 'none',
-             fontSize: '0.75rem',
-             fontWeight: 600
-           }}
-           onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(16, 185, 129, 0.1)')}
-           onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(16, 185, 129, 0.05)')}
+        <Link
+          href="/contact"
+          title="Send Feedback"
+          style={{
+            background: 'rgba(16, 185, 129, 0.05)',
+            border: '1px solid rgba(16, 185, 129, 0.1)',
+            borderRadius: '6px',
+            padding: '0.4rem 0.6rem',
+            color: '#10b981',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            textDecoration: 'none',
+            fontSize: '0.75rem',
+            fontWeight: 600
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(16, 185, 129, 0.1)')}
+          onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(16, 185, 129, 0.05)')}
         >
-           <MessageSquarePlus size={14} /> Feedback
-        </a>
+          <MessageSquarePlus size={14} /> Feedback
+        </Link>
 
         <LanguageSelector />
 
         <Link
-           href="/docs"
-           className="nav-util-btn"
-           style={{ 
-             background: 'rgba(255,255,255,0.03)', 
-             border: '1px solid #222222', 
-             borderRadius: '6px', 
-             padding: '0.4rem 0.75rem', 
-             color: '#6b7280',
-             fontSize: '0.75rem',
-             display: 'flex',
-             alignItems: 'center',
-             gap: '3rem',
-             cursor: 'pointer',
-             transition: 'all 0.2s ease',
-             textDecoration: 'none'
-           }}
+          href="/docs"
+          className="nav-util-btn"
+          style={{
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid #222222',
+            borderRadius: '6px',
+            padding: '0.4rem 0.75rem',
+            color: '#6b7280',
+            fontSize: '0.75rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '3rem',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            textDecoration: 'none'
+          }}
         >
-           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Search size={14} /> Search...
-           </div>
-           <div style={{ padding: '2px 4px', background: '#222222', borderRadius: '4px', fontSize: '0.65rem' }}>⌘K</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Search size={14} /> Search...
+          </div>
+          <div style={{ padding: '2px 4px', background: '#222222', borderRadius: '4px', fontSize: '0.65rem' }}>⌘K</div>
         </Link>
 
-        <Link 
-          href="https://github.com/sospeterkedogo/espeezy" 
-          target="_blank"
+        <Link
+          href="/#developers"
           style={{ color: '#9ca3af', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8125rem' }}
           onMouseEnter={(e) => (e.currentTarget.style.color = '#f3f4f6')}
           onMouseLeave={(e) => (e.currentTarget.style.color = '#9ca3af')}
         >
-           <Code size={16} /> 1.2k
+          <Code size={16} /> 1.2k
         </Link>
 
         <div style={{ height: '20px', width: '1px', background: '#222222' }} />
 
         {user ? (
-          <Link 
-            href="/dashboard" 
-            style={{ 
-              background: '#10b981', 
-              color: '#0a0a0a', 
-              textDecoration: 'none', 
-              fontSize: '0.875rem', 
-              fontWeight: 650, 
-              padding: '0.5rem 1rem', 
+          <Link
+            href="/dashboard"
+            style={{
+              background: '#10b981',
+              color: '#0a0a0a',
+              textDecoration: 'none',
+              fontSize: '0.875rem',
+              fontWeight: 650,
+              padding: '0.5rem 1rem',
               borderRadius: '6px',
               boxShadow: '0 0 20px rgba(16, 185, 129, 0.1)',
               transition: 'all 0.2s ease'
@@ -275,15 +274,15 @@ export default function LandingHeader({ navMenus }: LandingHeaderProps) {
         ) : (
           <>
             <Link href="/login" style={{ color: '#f3f4f6', textDecoration: 'none', fontSize: '0.875rem', fontWeight: 500, padding: '0.5rem 0.75rem' }}>Sign in</Link>
-            <Link 
-              href="/login?signup=true" 
-              style={{ 
-                background: '#10b981', 
-                color: '#0a0a0a', 
-                textDecoration: 'none', 
-                fontSize: '0.875rem', 
-                fontWeight: 650, 
-                padding: '0.5rem 1rem', 
+            <Link
+              href="/login?signup=true"
+              style={{
+                background: '#10b981',
+                color: '#0a0a0a',
+                textDecoration: 'none',
+                fontSize: '0.875rem',
+                fontWeight: 650,
+                padding: '0.5rem 1rem',
                 borderRadius: '6px',
                 boxShadow: '0 0 20px rgba(16, 185, 129, 0.1)',
                 transition: 'all 0.2s ease'
@@ -298,7 +297,7 @@ export default function LandingHeader({ navMenus }: LandingHeaderProps) {
       </div>
 
       {/* Mobile Menu Toggle */}
-      <button 
+      <button
         className="mobile-only-flex"
         style={{ background: 'none', border: 'none', color: '#f3f4f6', cursor: 'pointer', padding: '0.5rem' }}
         onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -332,7 +331,7 @@ export default function LandingHeader({ navMenus }: LandingHeaderProps) {
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     {navMenus[key].categories.flatMap((cat: NavCategory) => cat.items).map((item: NavItem) => (
-                      <Link 
+                      <Link
                         key={item.id}
                         href={item.href}
                         style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '1rem' }}
@@ -346,16 +345,16 @@ export default function LandingHeader({ navMenus }: LandingHeaderProps) {
                 </div>
               ))}
               <div style={{ paddingTop: '1rem', borderTop: '1px solid #222', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                 <Link href="/docs" style={{ color: '#f3f4f6', textDecoration: 'none', fontWeight: 600 }} onClick={() => setIsMobileMenuOpen(false)}>Help Center</Link>
-                 <LanguageSelector />
-                 {user ? (
-                   <Link href="/dashboard" style={{ background: '#10b981', color: '#0a0a0a', padding: '1rem', borderRadius: '8px', textAlign: 'center', fontWeight: 700, textDecoration: 'none' }} onClick={() => setIsMobileMenuOpen(false)}>Dashboard</Link>
-                 ) : (
-                   <>
-                     <Link href="/login" style={{ color: '#f3f4f6', textDecoration: 'none', fontWeight: 600 }} onClick={() => setIsMobileMenuOpen(false)}>Sign in</Link>
-                     <Link href="/login?signup=true" style={{ background: '#10b981', color: '#0a0a0a', padding: '1rem', borderRadius: '8px', textAlign: 'center', fontWeight: 700, textDecoration: 'none' }} onClick={() => setIsMobileMenuOpen(false)}>Start Project</Link>
-                   </>
-                 )}
+                <Link href="/docs" style={{ color: '#f3f4f6', textDecoration: 'none', fontWeight: 600 }} onClick={() => setIsMobileMenuOpen(false)}>Help Center</Link>
+                <LanguageSelector />
+                {user ? (
+                  <Link href="/dashboard" style={{ background: '#10b981', color: '#0a0a0a', padding: '1rem', borderRadius: '8px', textAlign: 'center', fontWeight: 700, textDecoration: 'none' }} onClick={() => setIsMobileMenuOpen(false)}>Dashboard</Link>
+                ) : (
+                  <>
+                    <Link href="/login" style={{ color: '#f3f4f6', textDecoration: 'none', fontWeight: 600 }} onClick={() => setIsMobileMenuOpen(false)}>Sign in</Link>
+                    <Link href="/login?signup=true" style={{ background: '#10b981', color: '#0a0a0a', padding: '1rem', borderRadius: '8px', textAlign: 'center', fontWeight: 700, textDecoration: 'none' }} onClick={() => setIsMobileMenuOpen(false)}>Start Project</Link>
+                  </>
+                )}
               </div>
             </div>
           </motion.div>

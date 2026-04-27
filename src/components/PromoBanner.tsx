@@ -11,7 +11,7 @@ export default function PromoBanner() {
     if (typeof localStorage === 'undefined') return true
     return !localStorage.getItem('gf_promo_dismissed_v2')
   })
-  
+
   const supabase = createBrowserSupabaseClient()
 
   useEffect(() => {
@@ -22,7 +22,7 @@ export default function PromoBanner() {
         .select('*')
         .eq('key', 'main_banner')
         .single()
-      
+
       if (data) setConfig(data)
     }
     fetchConfig()
@@ -67,25 +67,25 @@ export default function PromoBanner() {
       borderBottom: '1px solid rgba(255,255,255,0.1)'
     }}>
       <div className="promo-shimmer" />
-      
+
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontWeight: 950, fontSize: '0.8rem', letterSpacing: '0.1em', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}>
         <Zap size={18} fill="white" className="animate-pulse" />
-        <span style={{ textTransform: 'uppercase' }}>Protocol Target</span>
+        <span style={{ textTransform: 'uppercase' }}>Current Target </span>
       </div>
 
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        gap: '0.75rem', 
-        fontSize: '0.95rem', 
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.75rem',
+        fontSize: '0.95rem',
         fontWeight: 850,
         color: 'white',
         textShadow: '0 2px 10px rgba(0,0,0,0.3)'
       }}>
-        {bannerText} — CODE: <span style={{ 
-          background: 'rgba(255,255,255,1)', 
-          padding: '4px 12px', 
-          borderRadius: '8px', 
+        {bannerText} — CODE: <span style={{
+          background: 'rgba(255,255,255,1)',
+          padding: '4px 12px',
+          borderRadius: '8px',
           fontFamily: 'monospace',
           color: 'black',
           border: '2px solid rgba(255,255,255,0.5)',
@@ -96,12 +96,12 @@ export default function PromoBanner() {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-        <button 
+        <button
           onClick={handleDismiss}
-          style={{ 
-            background: 'none', 
-            border: 'none', 
-            color: 'white', 
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'white',
             cursor: 'pointer',
             padding: '4px',
             opacity: 0.6,
