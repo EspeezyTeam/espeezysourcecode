@@ -59,14 +59,12 @@ function AnimatedNumber({ value }: { value: number }) {
 
 // ─── Coming Features ─────────────────────────────────────────────────────────
 const COMING_FEATURES = [
-  { icon: <Cpu size={20} />, title: 'AI Study Coach', desc: 'Personalised learning paths powered by GPT-4o — adapts to your pace, course content, and group role.', tag: 'AI / ML' },
-  { icon: <BarChart2 size={20} />, title: 'Live Analytics Dashboard', desc: 'Real-time contribution heatmaps, velocity tracking, and automated progress reports for educators.', tag: 'Analytics' },
-  { icon: <BookOpen size={20} />, title: 'Institutional LMS Bridge', desc: 'Native integrations with Canvas, Blackboard, Moodle and Nile — no more copy-pasting grades.', tag: 'Integrations' },
-  { icon: <Globe size={20} />, title: 'Global Knowledge Network', desc: 'Connect with students across universities worldwide. Share resources, form study groups, and collaborate internationally.', tag: 'Network' },
-  { icon: <ShieldCheck size={20} />, title: 'Academic Integrity Engine', desc: 'AI-assisted plagiarism detection and tamper-proof contribution logs acceptable as evidence in academic disputes.', tag: 'Trust' },
-  { icon: <Award size={20} />, title: 'Verified Digital Credentials', desc: 'Blockchain-anchored certificates and portfolio exports recognised by hiring partners and graduate schools.', tag: 'Credentials' },
-  { icon: <Zap size={20} />, title: 'Mobile-First Native Apps', desc: 'Full iOS and Android applications — real-time sync, push notifications, and offline mode for field students.', tag: 'Mobile' },
-  { icon: <Heart size={20} />, title: 'Wellbeing & Balance Insights', desc: 'Burnout detection, workload fairness alerts, and peer support channels baked directly into the workflow.', tag: 'Wellbeing' },
+  { icon: <Cpu size={20} />, title: 'Your Personal AI Coach', desc: 'Imagine having a smart tutor that knows your course content, adapts to how you learn best, and helps you crush your assignments.', tag: 'Smart Learning' },
+  { icon: <BarChart2 size={20} />, title: 'No More Freeloaders', desc: 'Crystal-clear analytics show exactly who did what in group projects. Say goodbye to carrying the team without credit.', tag: 'Fairness' },
+  { icon: <Zap size={20} />, title: 'Supercharged Collaboration', desc: 'Everything you need in one fast, beautiful workspace. Plan, track, and execute group tasks seamlessly without the usual stress.', tag: 'Productivity' },
+  { icon: <Heart size={20} />, title: 'Built-in Wellbeing Support', desc: 'We keep an eye on your workload to prevent burnout. Get gentle nudges when it’s time to take a break and recharge.', tag: 'Mental Health' },
+  { icon: <BookOpen size={20} />, title: 'Syncs with Your School', desc: 'Connects right into Canvas, Blackboard, or Moodle so you don’t have to copy-paste your work everywhere.', tag: 'Integrations' },
+  { icon: <Globe size={20} />, title: 'Global Student Network', desc: 'Join forces with students around the world. Share awesome resources, find study buddies, and collaborate globally.', tag: 'Community' },
 ]
 
 
@@ -90,7 +88,6 @@ const NAV_LINKS = [
   { href: '/#pricing', label: 'Pricing' },
   { href: '/fund', label: 'Support Us' },
   { href: '/docs', label: 'Docs' },
-  { href: '/login', label: 'Sign In' },
 ]
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
@@ -106,9 +103,6 @@ export default function PreRegisterPage() {
 
   // Form state
   const [email, setEmail] = useState('')
-  const [fullName, setFullName] = useState('')
-  const [institution, setInstitution] = useState('')
-  const [role, setRole] = useState('student')
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [submitError, setSubmitError] = useState('')
@@ -138,12 +132,18 @@ export default function PreRegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitError('')
+
+    if (!email.trim()) {
+      setSubmitError('Please enter a valid email address.')
+      return
+    }
+
     setSubmitting(true)
     try {
       const res = await fetch('/api/preregister', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, fullName, institution, role, source: 'preregister_page' }),
+        body: JSON.stringify({ email, source: 'preregister_page' }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -188,7 +188,6 @@ export default function PreRegisterPage() {
         </div>
 
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-          <Link href="/login" className="hide-mobile" style={{ padding: '0.5rem 1.25rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.12)', fontSize: '0.8rem', fontWeight: 700, color: 'rgba(255,255,255,0.7)', textDecoration: 'none', background: 'transparent' }}>Sign In</Link>
           <a href="#register" style={{ padding: '0.5rem 1.25rem', borderRadius: '8px', background: 'var(--brand)', fontSize: '0.8rem', fontWeight: 800, color: 'white', textDecoration: 'none', whiteSpace: 'nowrap' }}>
             Join Early Access
           </a>
@@ -291,20 +290,8 @@ export default function PreRegisterPage() {
                   </p>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
-                    <input type="text" placeholder="Full Name" value={fullName} onChange={e => setFullName(e.target.value)}
-                      style={{ width: '100%', padding: '0.875rem 1rem', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)', color: 'white', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }} />
                     <input type="email" placeholder="Email Address *" value={email} onChange={e => setEmail(e.target.value)} required
-                      style={{ width: '100%', padding: '0.875rem 1rem', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.03)', color: 'white', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }} />
-                    <input type="text" placeholder="Institution / University (optional)" value={institution} onChange={e => setInstitution(e.target.value)}
-                      style={{ width: '100%', padding: '0.875rem 1rem', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)', color: 'white', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }} />
-                    <select value={role} onChange={e => setRole(e.target.value)}
-                      style={{ width: '100%', padding: '0.875rem 1rem', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: '#111', color: role ? 'white' : 'rgba(255,255,255,0.4)', fontSize: '0.9rem', outline: 'none', cursor: 'pointer', boxSizing: 'border-box' }}>
-                      <option value="student">I am a Student</option>
-                      <option value="educator">I am an Educator / Lecturer</option>
-                      <option value="institution">I represent an Institution</option>
-                      <option value="investor">I am an Investor / Partner</option>
-                      <option value="other">Other</option>
-                    </select>
+                      style={{ width: '100%', padding: '1rem', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.03)', color: 'white', fontSize: '1rem', outline: 'none', boxSizing: 'border-box' }} />
 
                     {submitError && (
                       <div style={{ padding: '0.75rem 1rem', borderRadius: '8px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#fca5a5', fontSize: '0.85rem' }}>
@@ -435,25 +422,33 @@ export default function PreRegisterPage() {
 
       {/* ── FOOTER ───────────────────────────────────────────────────────── */}
       <footer style={{ borderTop: '1px solid rgba(255,255,255,0.06)', padding: 'clamp(2rem, 5vw, 3.5rem) clamp(1rem, 4vw, 2.5rem)', position: 'relative', zIndex: 1 }}>
-        <div style={{ maxWidth: '1100px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <div style={{ width: '28px', height: '28px', background: 'linear-gradient(135deg, var(--brand) 0%, #059669 100%)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Sparkles size={13} color="white" />
+        <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
+          <div style={{ marginBottom: '2.5rem', maxWidth: '600px' }}>
+            <h3 style={{ color: 'white', fontWeight: 800, fontSize: '1.1rem', marginBottom: '0.75rem' }}>About the Project</h3>
+            <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem', lineHeight: 1.6 }}>
+              Hey there! We're building Espeezy to make student collaboration fairer and completely stress-free. It's an open, fast, and secure platform powered by modern technologies like Next.js and Supabase. By signing up now with your email, you help us understand how many students need this, which speeds up our development. We promise no spam—just early access!
+            </p>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '2rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <div style={{ width: '28px', height: '28px', background: 'linear-gradient(135deg, var(--brand) 0%, #059669 100%)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Sparkles size={13} color="white" />
+              </div>
+              <span style={{ fontWeight: 900, fontSize: '0.9rem', color: 'rgba(255,255,255,0.6)', letterSpacing: '-0.02em' }}>{config.brand_name}</span>
             </div>
-            <span style={{ fontWeight: 900, fontSize: '0.9rem', color: 'rgba(255,255,255,0.6)', letterSpacing: '-0.02em' }}>{config.brand_name}</span>
+            <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+              {[['/', 'Home'], ['/#features', 'Features'], ['/fund', 'Support'], ['/docs', 'Docs']].map(([href, label]) => (
+                <Link key={href} href={href} style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.3)', textDecoration: 'none', fontWeight: 600, transition: 'color 0.15s' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.7)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.3)')}>
+                  {label}
+                </Link>
+              ))}
+            </div>
+            <p style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.2)', margin: 0 }}>
+              © {new Date().getFullYear()} {config.brand_name}. All rights reserved.
+            </p>
           </div>
-          <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-            {[['/', 'Home'], ['/#features', 'Features'], ['/fund', 'Support'], ['/login', 'Sign In'], ['/docs', 'Docs']].map(([href, label]) => (
-              <Link key={href} href={href} style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.3)', textDecoration: 'none', fontWeight: 600, transition: 'color 0.15s' }}
-                onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.7)')}
-                onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.3)')}>
-                {label}
-              </Link>
-            ))}
-          </div>
-          <p style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.2)', margin: 0 }}>
-            © {new Date().getFullYear()} {config.brand_name}. All rights reserved.
-          </p>
         </div>
       </footer>
 

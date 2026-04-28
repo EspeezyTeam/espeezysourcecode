@@ -139,7 +139,7 @@ docker compose version
 sudo mkdir -p /opt
 sudo chown deploy:deploy /opt
 cd /opt
-git clone https://github.com/sospeterkedogo/groupflow.git espeezy
+git clone https://github.com/EspeezyTeam/espeezysourcecode.git espeezy
 cd /opt/espeezy
 cp .env.example .env.local
 ```

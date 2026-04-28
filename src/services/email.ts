@@ -198,6 +198,30 @@ export async function sendP2PTransactionEmail(opts: {
   })
 }
 
+/** Waitlist confirmation email for pre-registrations */
+export async function sendPreregisterEmail(opts: {
+  to: string
+}): Promise<void> {
+  await sendEmail({
+    to: opts.to,
+    subject: "You're on the list! Welcome to Espeezy",
+    html: `
+      <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto;">
+        <div style="background:linear-gradient(135deg,#10b981,#059669);padding:40px;border-radius:16px 16px 0 0;text-align:center">
+          <h1 style="color:white;margin:0;font-size:28px;letter-spacing:-0.03em">You're on the list!</h1>
+        </div>
+        <div style="background:#fff;padding:32px;border:1px solid #eee;border-top:none;border-radius:0 0 16px 16px">
+          <p style="font-size:18px;color:#111">Hey there,</p>
+          <p style="color:#444;line-height:1.6">Thanks for joining the early access waitlist for <strong>Espeezy</strong>.</p>
+          <p style="color:#444;line-height:1.6">We are working hard to build a platform that makes student collaboration fair, transparent, and completely stress-free. By signing up early, you've secured your spot and will be the first to know when we launch!</p>
+          <p style="margin-top:32px;font-size:13px;color:#888">If you have any questions, feel free to reply directly to this email.</p>
+        </div>
+      </div>
+    `,
+    text: `Hey there,\n\nThanks for joining the early access waitlist for Espeezy.\n\nWe are working hard to build a platform that makes student collaboration fair, transparent, and completely stress-free. By signing up early, you've secured your spot and will be the first to know when we launch!\n\nIf you have any questions, feel free to reply directly to this email.`,
+  })
+}
+
 // ─── Util ───────────────────────────────────────────────────────────────────
 
 function escapeHtml(s: string): string {

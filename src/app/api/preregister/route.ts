@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/utils/supabase/server'
 import { createHash } from 'crypto'
 import { isValidEmail, sanitizeName, sanitizeText, checkBodySize, LIMITS } from '@/utils/sanitize'
+import { sendPreregisterEmail } from '@/services/email'
 
 export async function POST(req: Request) {
   try {
@@ -59,6 +60,11 @@ export async function POST(req: Request) {
       console.error('[preregister] DB error:', error.code)
       return NextResponse.json({ error: 'Registration failed. Please try again.' }, { status: 500 })
     }
+
+    // Send confirmation email asynchronously (don't block the response)
+    sendPreregisterEmail({ to: cleanEmail }).catch(err => {
+      console.error('[preregister] Failed to send welcome email:', err)
+    })
 
     // Fetch updated count
     const { data: countData } = await supabase.rpc('get_prereg_count')

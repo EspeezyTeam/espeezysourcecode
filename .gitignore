@@ -45,4 +45,18 @@ next-env.d.ts
 .windsurf/
 skills-lock.json
 
-.md
+# docs
+.md*
+
+# images
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.webp
+*.ico
+
+# mobile app
+mobile-app/*
+
