@@ -53,8 +53,8 @@ Target stack:
 
 ```bash
 cd ~
-git clone https://github.com/sospeterkedogo/espeezy.git
-cd espeezy
+git clone https://github.com/EspeezyTeam/espeezysourcecode.git
+cd EspeezyApp
 cp .env.example .env.local
 ```
 
@@ -71,7 +71,7 @@ Start app:
 ```bash
 docker compose -f docker-compose.dev.yml up -d --build
 docker ps
-docker logs -f espeezy_app
+docker logs -f Espeezy_App
 ```
 
 ---
@@ -112,7 +112,7 @@ docker compose version
 sudo mkdir -p /opt
 sudo chown deploy:deploy /opt
 cd /opt
-git clone https://github.com/sospeterkedogo/groupflow.git espeezy
+git clone https://github.com/EspeezyTeam/espeezysourcecode.git EspeezyApp
 cd /opt/espeezy
 cp .env.example .env.local
 ```
@@ -122,7 +122,7 @@ Fill `.env.local` with real values, then:
 ```bash
 docker compose -f docker-compose.dev.yml up -d --build
 docker ps
-docker logs -f espeezy_app
+docker logs -f Espeezy_App
 ```
 
 ---
@@ -200,14 +200,7 @@ docker logs -f espeezy_app
 docker exec -it espeezy_app sh
 ```
 
-### PowerShell
 
-```powershell
-docker compose -f docker-compose.dev.yml up -d --build
-docker compose -f docker-compose.dev.yml down
-docker ps
-docker logs -f espeezy_app
-docker exec -it espeezy_app sh
 ```
 
 ## 4.4 Git Fast Lane
@@ -223,16 +216,7 @@ git pull --rebase origin main
 git push -u origin feat/my-change
 ```
 
-### PowerShell
 
-```powershell
-git status
-git checkout -b feat/my-change
-git add -A
-git commit -m "feat(scope): short description"
-git pull --rebase origin main
-git push -u origin feat/my-change
-```
 
 ## 4.5 GitHub CLI
 
@@ -250,6 +234,7 @@ gh run watch
 ### Bash
 
 ```bash
+curl -I https://prereg.espeezy.com
 curl -I https://espeezy.com
 curl -I https://espeezy.com/terms
 curl -I https://espeezy.com/privacy
@@ -272,7 +257,31 @@ Expected: HTTP 200 for all pages above.
 
 ---
 
-## 5) Idiot-Proof Deploy Checklist (Copy This Every Time)
+
+### PowerShell
+
+```powershell
+git status
+git checkout -b feat/my-change
+git add -A
+git commit -m "feat(scope): short description"
+git pull --rebase origin main
+git push -u origin feat/my-change
+
+
+```
+
+### PowerShell
+
+```powershell
+docker compose -f docker-compose.dev.yml up -d --build
+docker compose -f docker-compose.dev.yml down
+docker ps
+docker logs -f espeezy_app
+docker exec -it espeezy_app sh
+
+
+## ) Idiot-Proof Deploy Checklist (Copy This Every Time)
 
 1. Pull latest and switch to main.
 2. Install dependencies (`npm ci`).
@@ -451,12 +460,12 @@ curl -I https://espeezy.com https://espeezy.com/terms https://espeezy.com/privac
 
 ## 13) Emergency Contacts (Fill These)
 
-- Primary owner: <NAME>
-- Infra owner: <NAME>
-- Domain DNS owner: <NAME>
-- Stripe account owner: <NAME>
-- Supabase owner: <NAME>
-
+- Primary owner: <SOSPETERKEDOGO>
+- Infra owner: <SOSPETERKEDOGO>
+- Domain DNS owner: <SOSPETERKEDOGO>
+- Stripe account owner: <SOSPETERKEDOGO>
+- Supabase owner: <SOSPETERKEDOGO>
+- Contact info: <'Website: https://me.devpete.co.uk/'>
 ---
 
 ## 14) Final Note

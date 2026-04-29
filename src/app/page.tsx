@@ -9,6 +9,9 @@ import {
   GraduationCap, TrendingUp, Heart, Award
 } from 'lucide-react'
 
+import { db } from '@/firebase.config';
+
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface TimeLeft { days: number; hours: number; minutes: number; seconds: number }
 interface LaunchConfig {

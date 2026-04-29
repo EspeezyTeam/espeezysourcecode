@@ -15,7 +15,6 @@ Espeezy is a student-focused workspace that combines task coordination, social p
 - Next.js 16 App Router
 - React 19
 - TypeScript
-- Supabase
 - Stripe
 - Playwright
 - Upstash Redis rate limiting
