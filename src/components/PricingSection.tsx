@@ -1,86 +1,90 @@
 'use client'
 
-import { useState } from 'react'
-import { Sparkles, CheckCircle2, ArrowRight, Zap, Crown, Rocket } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Shield, Sparkles, CheckCircle2, Check, ArrowRight, Loader2, Key } from 'lucide-react'
+import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { ProfileContext } from '@/context/ProfileContext'
+import { useContext } from 'react'
+import TransientError from '@/components/TransientError'
 
 interface PricingSectionProps {
   showTitle?: boolean
   isLanding?: boolean
 }
 
-const PLANS = [
-  {
-    id: 'free',
-    name: 'Starter',
-    icon: <Zap size={20} />,
-    price: '£0',
-    period: '/forever',
-    tagline: 'Everything you need to stop carrying your team.',
-    cta: 'Get Started Free',
-    highlight: false,
-    features: [
-      'Unlimited group projects',
-      'Individual contribution tracking',
-      'Task assignment & deadlines',
-      'Real-time collaboration',
-      'Basic analytics dashboard',
-      'Mobile app access',
-      'Up to 5 team members per project',
-    ],
-  },
-  {
-    id: 'pro',
-    name: 'Pro',
-    icon: <Rocket size={20} />,
-    price: '£3.99',
-    period: '/month',
-    tagline: 'For students who refuse to settle for average.',
-    cta: 'Upgrade to Pro',
-    highlight: true,
-    badge: 'Most Popular',
-    features: [
-      'Everything in Starter, plus:',
-      'Unlimited team members',
-      'AI-powered contribution analysis',
-      'Advanced analytics & heatmaps',
-      'Peer review & rating system',
-      'Export reports as PDF',
-      'Priority support',
-      'Custom group branding',
-    ],
-  },
-  {
-    id: 'institution',
-    name: 'Institution',
-    icon: <Crown size={20} />,
-    price: '£49',
-    period: '/year per seat',
-    tagline: 'Built for universities and departments at scale.',
-    cta: 'Contact Sales',
-    highlight: false,
-    features: [
-      'Everything in Pro, plus:',
-      'LMS integration (Canvas, Moodle, Blackboard)',
-      'Educator admin dashboard',
-      'Bulk student onboarding',
-      'Academic integrity reports',
-      'Custom SSO / SAML',
-      'Dedicated account manager',
-      'SLA & uptime guarantee',
-    ],
-  },
-]
-
 export default function PricingSection({ showTitle = true, isLanding = false }: PricingSectionProps) {
-  const [hoveredPlan, setHoveredPlan] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [loadingPlan, setLoadingPlan] = useState<string | null>(null)
+  const [lifetimeSeatsUsed, setLifetimeSeatsUsed] = useState<number | null>(null)
+  const [proCount, setProCount] = useState<number | null>(null)
+  const [coupon, setCoupon] = useState('')
+  const [discountActive, setDiscountActive] = useState(false)
+  const [validatingCoupon, setValidatingCoupon] = useState(false)
 
-  const handleSelectPlan = (planId: string) => {
-    if (planId === 'free') {
-      window.location.href = '/preregister'
-    } else if (planId === 'institution') {
-      window.location.href = 'mailto:sales@espeezy.com?subject=Institution Plan Inquiry'
-    } else {
-      window.location.href = '/preregister'
+  const context = useContext(ProfileContext)
+  const profile = context?.profile
+  const supabase = createBrowserSupabaseClient()
+
+  useEffect(() => {
+    const fetchCounts = async () => {
+      // Fetch both counts in parallel to halve latency
+      const [{ count: lifetimeCount }, { count: proTotal }] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('*', { count: 'exact', head: true })
+          .eq('subscription_plan', 'lifetime'),
+        supabase
+          .from('profiles')
+          .select('*', { count: 'exact', head: true })
+          .eq('subscription_plan', 'pro'),
+      ])
+
+      setLifetimeSeatsUsed(lifetimeCount || 0)
+      setProCount(proTotal || 0)
+    }
+    fetchCounts()
+  }, [supabase])
+
+  const handleApplyCoupon = () => {
+    if (!coupon) return
+    setValidatingCoupon(true)
+
+    // Simulate high-performance validation logic
+    setTimeout(() => {
+      if (coupon.toUpperCase() === 'ELITE30') {
+        setDiscountActive(true)
+        setError(null)
+      } else {
+        setError('Invalid or expired clearance code.')
+        setDiscountActive(false)
+      }
+      setValidatingCoupon(false)
+    }, 600)
+  }
+
+  const handleCheckout = async (plan: 'pro' | 'premium' | 'lifetime') => {
+    setError(null)
+    setLoadingPlan(plan)
+
+    try {
+      // 1. Check if user is logged in
+      const { data: { user } } = await supabase.auth.getUser()
+
+      if (!user) {
+        // Redirect to login then back to checkout interstitial
+        const returnUrl = `/checkout?plan=${plan}${discountActive ? `&coupon=${coupon}` : ''}`
+        window.location.href = `/login?redirect=${encodeURIComponent(returnUrl)}`
+        return
+      }
+
+      // 2. Route through pre-checkout interstitial for a PayPal-style review step
+      const params = new URLSearchParams({ plan, uid: user.id })
+      if (discountActive && coupon) params.set('coupon', coupon)
+      window.location.href = `/checkout?${params.toString()}`
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Checkout initiation failed.')
+    } finally {
+      setLoadingPlan(null)
     }
   }
 
@@ -88,219 +92,474 @@ export default function PricingSection({ showTitle = true, isLanding = false }: 
     <div style={{ width: '100%', maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '4rem' }}>
 
       {showTitle && (
-        <div style={{ color: 'white', display: 'flex', flexDirection: 'column', gap: '1.25rem', textAlign: isLanding ? 'center' : 'left' }}>
+        <div style={{ color: 'white', display: 'flex', flexDirection: 'column', gap: '1rem', textAlign: isLanding ? 'center' : 'left' }}>
           <div style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: isLanding ? 'center' : 'flex-start',
             gap: '0.75rem',
-            fontSize: '0.8rem',
+            fontSize: '0.85rem',
             color: 'var(--brand)',
             fontWeight: 900,
-            textTransform: 'uppercase' as const,
+            textTransform: 'uppercase',
             letterSpacing: '2px'
           }}>
-            <Sparkles size={18} /> Simple, honest pricing
+            <Sparkles size={18} /> Choose your plan
           </div>
-          <h2 style={{ fontSize: 'clamp(2.2rem, 5vw, 4rem)', lineHeight: 1, fontWeight: 950, letterSpacing: '-0.05em', color: 'white', margin: 0 }}>
-            Free for students.<br />
-            <span style={{ color: 'var(--brand)' }}>Powerful for everyone.</span>
+          <h2 style={{ fontSize: 'clamp(2.5rem, 5vw, 4.5rem)', lineHeight: 1, fontWeight: 950, letterSpacing: '-0.05em', color: 'white', margin: 0 }}>
+            Find the right level for your <span style={{ color: 'var(--brand)' }}>Team Space</span>
           </h2>
           <p style={{
-            maxWidth: '640px',
+            maxWidth: '720px',
             margin: isLanding ? '0 auto' : '0',
-            color: 'rgba(255,255,255,0.5)',
-            fontSize: '1.1rem',
+            color: 'rgba(255,255,255,0.6)',
+            fontSize: '1.2rem',
             fontWeight: 500,
-            lineHeight: 1.6
+            lineHeight: 1.5
           }}>
-            We know you&apos;re a student. We know budgets are tight. That&apos;s why the core platform is free — forever. No hidden fees, no trial that expires, no bait-and-switch.
+            Pick the access level you need for your group projects. All plans include everything you need to start working together.
           </p>
         </div>
       )}
 
-      {/* ── Trust bar ── */}
+      {/* ── CODE HUB (NEW) ────────────────────────────────────────── */}
       <div style={{
+        padding: '1.5rem 2rem',
+        background: 'rgba(255,255,255,0.02)',
+        borderRadius: '24px',
+        border: '1px solid var(--border)',
         display: 'flex',
-        justifyContent: 'center',
-        gap: '2.5rem',
+        alignItems: 'center',
+        justifyContent: 'space-between',
         flexWrap: 'wrap',
-        padding: '1.25rem 0',
-        borderTop: '1px solid rgba(255,255,255,0.05)',
-        borderBottom: '1px solid rgba(255,255,255,0.05)',
+        gap: '1.5rem',
+        maxWidth: '800px',
+        margin: isLanding ? '0 auto' : '0'
       }}>
-        {[
-          { value: '100%', label: 'Free tier — no card required' },
-          { value: '256-bit', label: 'SSL encryption on all data' },
-          { value: 'GDPR', label: 'Fully compliant' },
-          { value: '99.9%', label: 'Uptime SLA on Pro+' },
-        ].map((stat, i) => (
-          <div key={i} style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '1.1rem', fontWeight: 950, color: 'var(--brand)', letterSpacing: '-0.02em' }}>{stat.value}</div>
-            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase' as const, letterSpacing: '0.1em' }}>{stat.label}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: discountActive ? 'var(--brand)' : 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: discountActive ? 'black' : 'rgba(255,255,255,0.4)', transition: '0.3s' }}>
+            <Key size={22} />
           </div>
-        ))}
+          <div>
+            <div style={{ fontWeight: 950, fontSize: '0.9rem', color: discountActive ? 'var(--success)' : 'white' }}>
+              {discountActive ? '30% STUDENT DISCOUNT ACTIVE' : 'Enter your promo code'}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-sub)' }}>
+              {discountActive ? 'Your discount is applied and ready to use.' : 'Have a special code? Enter it here to save on Pro.'}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '0.75rem', flex: 1, maxWidth: '300px' }}>
+          <input
+            type="text"
+            placeholder="ELITE30"
+            value={coupon}
+            onChange={(e) => setCoupon(e.target.value)}
+            disabled={discountActive}
+            style={{
+              flex: 1,
+              padding: '0.75rem 1rem',
+              background: 'rgba(0,0,0,0.3)',
+              border: '1px solid var(--border)',
+              borderRadius: '12px',
+              color: 'white',
+              fontSize: '0.85rem',
+              fontWeight: 800,
+              outline: 'none',
+              textTransform: 'uppercase'
+            }}
+          />
+          <button
+            onClick={handleApplyCoupon}
+            disabled={discountActive || validatingCoupon || !coupon}
+            className="btn btn-primary"
+            style={{
+              width: 'auto',
+              padding: '0.75rem 1.25rem',
+              borderRadius: '12px',
+              fontWeight: 950,
+              fontSize: '0.8rem',
+              background: discountActive ? 'var(--success)' : 'var(--brand)',
+              color: 'black'
+            }}
+          >
+            {validatingCoupon ? <Loader2 className="animate-spin" size={16} /> : discountActive ? 'APPLIED' : 'APPLY'}
+          </button>
+        </div>
       </div>
 
-      {/* ── Plan cards ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
-        {PLANS.map((plan) => {
-          const isHovered = hoveredPlan === plan.id
-          const isPro = plan.highlight
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '2rem' }}>
 
-          return (
-            <div
-              key={plan.id}
-              onMouseEnter={() => setHoveredPlan(plan.id)}
-              onMouseLeave={() => setHoveredPlan(null)}
-              style={{
-                position: 'relative',
-                padding: '2.5rem 2rem',
-                borderRadius: '24px',
-                background: isPro
-                  ? 'linear-gradient(135deg, rgba(16,185,129,0.08) 0%, rgba(16,185,129,0.02) 100%)'
-                  : 'rgba(255,255,255,0.015)',
-                border: isPro
-                  ? '2px solid rgba(16,185,129,0.3)'
-                  : `1px solid rgba(255,255,255,${isHovered ? '0.12' : '0.06'})`,
-                backdropFilter: 'blur(20px)',
-                display: 'flex',
-                flexDirection: 'column' as const,
-                gap: '1.5rem',
-                transition: 'all 0.3s ease',
-                transform: isHovered ? 'translateY(-4px)' : 'none',
-                boxShadow: isPro
-                  ? '0 20px 60px rgba(16,185,129,0.1)'
-                  : isHovered
-                    ? '0 20px 40px rgba(0,0,0,0.3)'
-                    : 'none',
-              }}
-            >
-              {/* Badge */}
-              {plan.badge && (
-                <div style={{
-                  position: 'absolute',
-                  top: '-12px',
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  padding: '6px 20px',
-                  background: 'var(--brand)',
-                  borderRadius: '100px',
-                  fontSize: '0.7rem',
-                  fontWeight: 900,
-                  color: 'white',
-                  textTransform: 'uppercase' as const,
-                  letterSpacing: '0.15em',
-                  whiteSpace: 'nowrap' as const,
-                  boxShadow: '0 4px 12px rgba(16,185,129,0.3)',
-                }}>
-                  {plan.badge}
-                </div>
-              )}
-
-              {/* Header */}
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                  <div style={{
-                    width: '36px',
-                    height: '36px',
-                    borderRadius: '10px',
-                    background: isPro ? 'var(--brand)' : 'rgba(255,255,255,0.06)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: isPro ? 'white' : 'rgba(255,255,255,0.5)',
-                  }}>
-                    {plan.icon}
-                  </div>
-                  <span style={{ fontSize: '1.1rem', fontWeight: 900, color: 'white', letterSpacing: '-0.02em' }}>{plan.name}</span>
-                </div>
-                <p style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.45)', lineHeight: 1.5, margin: 0, fontWeight: 500 }}>
-                  {plan.tagline}
-                </p>
+        {/* STANDARD TIER */}
+        <div style={{
+          padding: '3.5rem 2.5rem',
+          borderRadius: '40px',
+          background: 'rgba(255,255,255,0.01)',
+          border: '1px solid rgba(255,255,255,0.05)',
+          backdropFilter: 'blur(20px)',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+          position: 'relative'
+        }} className="premium-pricing-card">
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3rem' }}>
+              <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <ArrowRight size={28} />
               </div>
-
-              {/* Price */}
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.25rem' }}>
-                <span style={{
-                  fontSize: 'clamp(2.5rem, 5vw, 3.5rem)',
-                  fontWeight: 950,
-                  color: 'white',
-                  letterSpacing: '-0.04em',
-                  lineHeight: 1,
-                }}>
-                  {plan.price}
-                </span>
-                <span style={{ color: 'rgba(255,255,255,0.35)', fontWeight: 700, fontSize: '0.85rem' }}>
-                  {plan.period}
-                </span>
+              <div style={{ textAlign: 'right' }}>
+                <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 950, color: 'white' }}>Standard</h2>
+                <p style={{ margin: 0, color: 'rgba(255,255,255,0.3)', fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase' }}>Basic Access</p>
               </div>
+            </div>
 
-              {/* CTA */}
-              <button
-                onClick={() => handleSelectPlan(plan.id)}
-                style={{
-                  width: '100%',
-                  padding: '0.95rem',
-                  borderRadius: '14px',
-                  background: isPro
-                    ? 'linear-gradient(135deg, var(--brand) 0%, #059669 100%)'
-                    : 'rgba(255,255,255,0.06)',
-                  color: isPro ? 'white' : 'rgba(255,255,255,0.8)',
-                  fontWeight: 900,
-                  fontSize: '0.9rem',
-                  border: isPro ? 'none' : '1px solid rgba(255,255,255,0.1)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.5rem',
-                  transition: 'all 0.2s',
-                  boxShadow: isPro ? '0 8px 24px rgba(16,185,129,0.25)' : 'none',
-                  letterSpacing: '-0.01em',
-                }}
-              >
-                {plan.cta} <ArrowRight size={16} />
-              </button>
-
-              {/* Features */}
-              <ul style={{ padding: 0, margin: 0, listStyle: 'none', display: 'flex', flexDirection: 'column' as const, gap: '0.85rem' }}>
-                {plan.features.map((feature, i) => (
-                  <li key={i} style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '0.75rem',
-                    fontSize: '0.83rem',
-                    color: i === 0 && plan.id !== 'free' ? 'var(--brand)' : 'rgba(255,255,255,0.65)',
-                    fontWeight: i === 0 && plan.id !== 'free' ? 800 : 600,
-                    lineHeight: 1.4,
-                  }}>
-                    <CheckCircle2 size={15} style={{
-                      color: isPro ? 'var(--brand)' : 'rgba(255,255,255,0.25)',
-                      flexShrink: 0,
-                      marginTop: '2px',
-                    }} />
-                    {feature}
+            <div style={{ marginBottom: '3rem' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem', marginBottom: '2.5rem' }}>
+                <span style={{ fontSize: '4rem', fontWeight: 950, color: 'white', letterSpacing: '-0.04em' }}>£0</span>
+                <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 800, fontSize: '0.9rem' }}>/mo</span>
+              </div>
+              <ul style={{ padding: 0, margin: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                {[
+                  'Access to all Basic Tools',
+                  '1 Active Collaborative Project',
+                  'Public Peer-Networking Protocol',
+                  'Standard AI Synthesis Engine',
+                  'Daily 1 hour access to all tools',
+                  'Maximum 2 Research & Report generations monthly',
+                  'Max 1 Project Reports weekly',
+                  'Maximum 5 page Research papers'
+                ].map((f, i) => (
+                  <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem', fontSize: '0.9rem', color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>
+                    <CheckCircle2 size={16} style={{ color: 'rgba(255,255,255,0.2)', flexShrink: 0, marginTop: '3px' }} />
+                    {f}
                   </li>
                 ))}
               </ul>
             </div>
-          )
-        })}
+          </div>
+
+          <button
+            className="btn btn-secondary"
+            style={{
+              width: '100%',
+              padding: '1.25rem',
+              borderRadius: '24px',
+              fontSize: '0.95rem',
+              fontWeight: 950,
+              background: 'rgba(255,255,255,0.03)',
+              color: 'white',
+              border: '1px solid rgba(255,255,255,0.1)',
+              cursor: 'pointer'
+            }}
+            disabled
+          >
+            Authorized by Default
+          </button>
+        </div>
+
+        {/* PRO TIER */}
+        <div style={{
+          padding: '3.5rem 2.5rem',
+          borderRadius: '40px',
+          background: 'rgba(var(--brand-rgb), 0.02)',
+          border: '2px solid var(--brand)',
+          backdropFilter: 'blur(30px)',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+          position: 'relative',
+          boxShadow: '0 20px 40px rgba(0,0,0,0.3)'
+        }} className="premium-pricing-card popular-tier">
+          <div style={{ position: 'absolute', top: '24px', right: '24px', padding: '6px 12px', background: 'var(--brand)', color: '#0a0a0a', borderRadius: '100px', fontSize: '0.65rem', fontWeight: 950, letterSpacing: '1px' }}>RECOMMENDED</div>
+
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3rem' }}>
+              <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'var(--brand)', color: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Shield size={28} />
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 950, color: 'white' }}>Pro Scholar</h2>
+                <p style={{ margin: 0, color: 'var(--brand)', fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase' }}>Advanced Institutional Analytics</p>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '3rem' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem', marginBottom: '2.5rem', flexWrap: 'wrap' }}>
+                {discountActive ? (
+                  <>
+                    <span style={{ fontSize: '4rem', fontWeight: 950, color: 'white', letterSpacing: '-0.04em' }}>£9.49</span>
+                    <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 800, fontSize: '1.5rem', textDecoration: 'line-through' }}>£14.49</span>
+                  </>
+                ) : (
+                  <span style={{ fontSize: '4rem', fontWeight: 950, color: 'white', letterSpacing: '-0.04em' }}>£9.49</span>
+                )}
+                <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 800, fontSize: '0.9rem' }}>/mo</span>
+              </div>
+              <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem', lineHeight: 1.6, marginBottom: '2rem', fontWeight: 500 }}>
+                Unlock the full technical potential of your research team with priority AI feedback, unlimited multi-project Hubs, and deep visual customization for your academic environment.
+              </p>
+              <ul style={{ padding: 0, margin: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                {[
+                  'Priority access to all Basic Tools',
+                  'Unlimited access to all tools',
+                  'Unlimited Project Groups',
+                  '20 page Research papers',
+                  'Unlimited Project Reports',
+                  'Priority access to new tools and features',
+                  '24/7 access to all tools',
+                  'Advanced AI Synthesis Engine'
+                ].map((f, i) => (
+                  <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem', fontSize: '0.9rem', color: 'rgba(255,255,255,0.9)', fontWeight: 700 }}>
+                    <CheckCircle2 size={16} style={{ color: 'var(--brand)', flexShrink: 0, marginTop: '3px' }} />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <button
+            className="btn btn-primary"
+            style={{
+              width: '100%',
+              padding: '1.25rem',
+              borderRadius: '24px',
+              fontSize: '1rem',
+              fontWeight: 950,
+              background: 'var(--brand)',
+              color: '#0a0a0a',
+              border: 'none',
+              boxShadow: '0 10px 30px rgba(var(--brand-rgb), 0.3)',
+              cursor: 'pointer'
+            }}
+            onClick={() => handleCheckout('pro')}
+            disabled={loadingPlan !== null}
+          >
+            {loadingPlan === 'pro' ? 'SYNCING...' : `JOIN OTHER ${proCount !== null ? proCount : '#'} MEMBERS TODAY`}
+          </button>
+        </div>
+
+        {/* PREMIUM TIER */}
+        <div style={{
+          padding: '3.5rem 2.5rem',
+          borderRadius: '40px',
+          background: 'rgba(255,255,255,0.02)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          backdropFilter: 'blur(20px)',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+          position: 'relative'
+        }} className="premium-pricing-card">
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3rem' }}>
+              <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, var(--brand) 0%, #6366f1 100%)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Sparkles size={28} />
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 950, color: 'white' }}>Premium</h2>
+                <p style={{ margin: 0, color: 'rgba(255,255,255,0.4)', fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase' }}>Institutional Partner Access</p>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '3rem' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem', marginBottom: '2.5rem', flexWrap: 'wrap' }}>
+                {discountActive ? (
+                  <>
+                    <span style={{ fontSize: '4rem', fontWeight: 950, color: 'white', letterSpacing: '-0.04em' }}>£10.49</span>
+                    <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 800, fontSize: '1.5rem', textDecoration: 'line-through' }}>£14.99</span>
+                  </>
+                ) : (
+                  <span style={{ fontSize: '4rem', fontWeight: 950, color: 'white', letterSpacing: '-0.04em' }}>£19.99</span>
+                )}
+                <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 800, fontSize: '0.9rem' }}>/mo</span>
+              </div>
+              <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.85rem', lineHeight: 1.6, marginBottom: '2rem', fontWeight: 500 }}>
+                The definitive mandate for academic excellence. Includes lifetime authorization protocols, elite scholar markers, researcher API clearing, and dedicated strategy session support.
+              </p>
+              <ul style={{ padding: 0, margin: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                {[
+                  'Unlimited access to all tools',
+                  'Unlimited Project Groups',
+                  'Unlimited Project Reports',
+                  '20 page Research papers',
+                  'Priority access to new tools and features',
+                  '24/7 access to all tools',
+                  'Advanced AI Synthesis Engine'
+                ].map((f, i) => (
+                  <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem', fontSize: '0.9rem', color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>
+                    <Check size={18} style={{ color: '#6366f1', flexShrink: 0, marginTop: '2px' }} />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <button
+            className="btn btn-secondary"
+            style={{
+              width: '100%',
+              padding: '1.25rem',
+              borderRadius: '24px',
+              fontSize: '1rem',
+              fontWeight: 950,
+              background: 'white',
+              color: '#0a0a0a',
+              border: 'none',
+              cursor: 'pointer'
+            }}
+            onClick={() => handleCheckout('premium')}
+            disabled={loadingPlan !== null}
+          >
+            {loadingPlan === 'premium' ? 'INITIALIZING...' : 'Get Premium'}
+          </button>
+        </div>
+
+        {/* LIFETIME TIER (NEW) */}
+        <div style={{
+          padding: '3.5rem 2.5rem',
+          borderRadius: '40px',
+          background: 'linear-gradient(135deg, rgba(20, 185, 129, 0.05) 0%, rgba(99, 102, 241, 0.05) 100%)',
+          border: '2px solid transparent',
+          backgroundImage: 'linear-gradient(var(--bg-main), var(--bg-main)), linear-gradient(135deg, #10b981 0%, #6366f1 100%)',
+          backgroundOrigin: 'border-box',
+          backgroundClip: 'padding-box, border-box',
+          backdropFilter: 'blur(30px)',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+          position: 'relative',
+          boxShadow: '0 25px 50px rgba(0,0,0,0.4)'
+        }} className="premium-pricing-card popular-tier">
+          <div style={{ position: 'absolute', top: '24px', right: '24px', padding: '6px 16px', background: 'linear-gradient(135deg, #10b981 0%, #6366f1 100%)', color: 'white', borderRadius: '100px', fontSize: '0.7rem', fontWeight: 950, letterSpacing: '1px' }}>LIFETIME ACCESS</div>
+
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3rem' }}>
+              <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #10b981 0%, #6366f1 100%)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Sparkles size={28} />
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 950, color: 'white' }}>Lifetime Researcher</h2>
+                <p style={{ margin: 0, color: 'var(--brand)', fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase' }}>Permanent Protocol Authorization</p>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '3rem' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem', marginBottom: '2.5rem', flexWrap: 'wrap' }}>
+                {discountActive ? (
+                  <>
+                    <span style={{ fontSize: '4rem', fontWeight: 950, color: 'white', letterSpacing: '-0.04em' }}>£69.30</span>
+                    <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 800, fontSize: '1.5rem', textDecoration: 'line-through' }}>£99</span>
+                  </>
+                ) : (
+                  <span style={{ fontSize: '4rem', fontWeight: 950, color: 'white', letterSpacing: '-0.04em' }}>£99</span>
+                )}
+                <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 800, fontSize: '0.9rem' }}>/once</span>
+              </div>
+              <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.85rem', lineHeight: 1.6, marginBottom: '2rem', fontWeight: 700 }}>
+                The ultimate clearance level. Reserved for the first 100 institutional founders. No monthly fees. All future protocol updates, beta features, and elite branding markers included forever.
+              </p>
+              <ul style={{ padding: 0, margin: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                {[
+                  'Permanent Protocol Authorization',
+                  'Beta Feature Review Lab Access',
+                  'Priority Model Update Stream',
+                  'Institutional "Founder" Marker',
+                  'All Premium Tier Benefits Included'
+                ].map((f, i) => (
+                  <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem', fontSize: '0.9rem', color: 'rgba(255,255,255,1)', fontWeight: 800 }}>
+                    <CheckCircle2 size={16} style={{ color: '#6366f1', flexShrink: 0, marginTop: '3px' }} />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <button
+            className="btn btn-primary"
+            style={{
+              width: '100%',
+              padding: '1.25rem',
+              borderRadius: '24px',
+              fontSize: '1rem',
+              fontWeight: 950,
+              background: (lifetimeSeatsUsed !== null && lifetimeSeatsUsed >= 100) ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg, #10b981 0%, #6366f1 100%)',
+              color: (lifetimeSeatsUsed !== null && lifetimeSeatsUsed >= 100) ? 'rgba(255,255,255,0.2)' : 'white',
+              border: (lifetimeSeatsUsed !== null && lifetimeSeatsUsed >= 100) ? '1px solid rgba(255,255,255,0.1)' : 'none',
+              boxShadow: (lifetimeSeatsUsed !== null && lifetimeSeatsUsed >= 100) ? 'none' : '0 10px 30px rgba(99, 102, 241, 0.3)',
+              cursor: (lifetimeSeatsUsed !== null && lifetimeSeatsUsed >= 100) ? 'not-allowed' : 'pointer'
+            }}
+            onClick={() => lifetimeSeatsUsed !== null && lifetimeSeatsUsed < 100 && handleCheckout('lifetime')}
+            disabled={loadingPlan !== null || (lifetimeSeatsUsed !== null && lifetimeSeatsUsed >= 100)}
+          >
+            {loadingPlan === 'lifetime' ? 'AUTHORIZING...' : (lifetimeSeatsUsed !== null && lifetimeSeatsUsed >= 100) ? 'OFFER EXPIRED (Sold Out)' : 'Secure Lifetime Access'}
+          </button>
+
+          {/* SCARCITY INDICATOR (NEW) */}
+          {lifetimeSeatsUsed !== null && (
+            <div style={{ marginTop: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '1px' }}>
+                <span style={{ color: lifetimeSeatsUsed >= 90 ? '#ef4444' : 'var(--brand)' }}>
+                  {lifetimeSeatsUsed >= 100 ? 'Mission Accomplished' : `Only ${100 - lifetimeSeatsUsed} Seats Left`}
+                </span>
+                <span style={{ color: 'rgba(255,255,255,0.4)' }}>{lifetimeSeatsUsed}/100</span>
+              </div>
+              <div style={{ height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '100px', overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%',
+                  width: `${Math.min(lifetimeSeatsUsed, 100)}%`,
+                  background: lifetimeSeatsUsed >= 90 ? '#ef4444' : 'linear-gradient(90deg, #10b981, #6366f1)',
+                  borderRadius: '100px',
+                  transition: 'width 1s cubic-bezier(0.4, 0, 0.2, 1)'
+                }} />
+              </div>
+            </div>
+          )}
+        </div>
+
       </div>
 
-      {/* ── Bottom guarantee ── */}
+      {error && (
+        <TransientError message={error} type="error" />
+      )}
+
       <div style={{
-        textAlign: 'center',
-        padding: '2rem',
-        borderRadius: '20px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '1rem',
+        marginTop: '1rem',
+        padding: '1.5rem 2rem',
         background: 'rgba(255,255,255,0.02)',
+        borderRadius: '24px',
         border: '1px solid rgba(255,255,255,0.05)',
+        color: 'rgba(255,255,255,0.4)',
+        fontSize: '0.85rem',
+        fontWeight: 600,
+        justifyContent: isLanding ? 'center' : 'flex-start'
       }}>
-        <p style={{ fontSize: '0.95rem', fontWeight: 700, color: 'rgba(255,255,255,0.6)', margin: 0, lineHeight: 1.6 }}>
-          🎓 <strong style={{ color: 'white' }}>Student-first promise:</strong> The free tier is not a trial. It&apos;s a full product. We believe every student deserves access to world-class collaboration tools — regardless of budget. Pro exists for those who want more, not because we&apos;re gating the basics.
-        </p>
+        <ArrowRight size={18} style={{ color: 'var(--brand)' }} />
+        <span>Secure checkout powered by Stripe. Authorization includes instant receipt generation.</span>
       </div>
+
+      <style jsx>{`
+        .premium-pricing-card:hover {
+          transform: translateY(-8px);
+          border-color: rgba(var(--brand-rgb), 0.2) !important;
+          background: rgba(255,255,255,0.03) !important;
+        }
+        .popular-tier:hover {
+          transform: translateY(-12px) scale(1.02);
+          box-shadow: 0 40px 80px rgba(0,0,0,0.6) !important;
+        }
+      `}</style>
     </div>
+
   )
 }
