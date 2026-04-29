@@ -2,7 +2,8 @@
 
 Date: 24 April 2026.
 Time: 12.31 a.m.
-Weather: Hot & Sunny, Lovely British, Summer Weather. UK.
+Weather: Hot & Sunny, Lovely British, Summer Weather. 
+Location: Northampton, UK.
 
 
 
