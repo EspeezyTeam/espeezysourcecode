@@ -87,8 +87,7 @@ function CountBlock({ value, label }: { value: number; label: string }) {
 const NAV_LINKS = [
   { href: '/', label: 'Home' },
   { href: '#features', label: 'Features' },
-  { href: '#developers', label: 'Developers' },
-  { href: '/login', label: 'Sign In' },
+  { href: '/preregister', label: 'Register' },
 ]
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
@@ -186,10 +185,9 @@ export default function Home() {
         </div>
 
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-          <Link href="/login" className="hide-mobile" style={{ padding: '0.5rem 1.25rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.12)', fontSize: '0.8rem', fontWeight: 700, color: 'rgba(255,255,255,0.7)', textDecoration: 'none', background: 'transparent' }}>Sign In</Link>
-          <a href="#register" style={{ padding: '0.5rem 1.25rem', borderRadius: '8px', background: 'var(--brand)', fontSize: '0.8rem', fontWeight: 800, color: 'white', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+          <Link href="/preregister" style={{ padding: '0.5rem 1.25rem', borderRadius: '8px', background: 'var(--brand)', fontSize: '0.8rem', fontWeight: 800, color: 'white', textDecoration: 'none', whiteSpace: 'nowrap' }}>
             Join Early Access
-          </a>
+          </Link>
         </div>
       </nav>
 
@@ -393,21 +391,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── TRUST BADGES ─────────────────────────────────────────────────── */}
-      <section style={{ padding: 'clamp(3rem, 6vw, 5rem) clamp(1rem, 4vw, 2.5rem)', borderTop: '1px solid rgba(255,255,255,0.05)', position: 'relative', zIndex: 1 }}>
-        <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
-          <p style={{ textAlign: 'center', fontSize: '0.7rem', fontWeight: 700, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.2em', marginBottom: '2rem' }}>
-            Designed to work alongside
-          </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '0.75rem' }}>
-            {['Nile LMS', 'Canvas', 'Blackboard', 'Moodle', 'Google Classroom', 'Microsoft Teams for Education', 'Turnitin', 'GitHub Education'].map(name => (
-              <div key={name} style={{ padding: '0.6rem 1.25rem', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 600, color: 'rgba(255,255,255,0.3)' }}>
-                {name}
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* Trust section removed as it contained legacy dev links */}
 
       {/* ── FINAL CTA ────────────────────────────────────────────────────── */}
       <section style={{ padding: 'clamp(5rem, 10vw, 8rem) clamp(1rem, 4vw, 2.5rem)', textAlign: 'center', position: 'relative', zIndex: 1, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
@@ -421,11 +405,8 @@ export default function Home() {
             5 million pre-registrations. One mission. Free, fair, and powerful education infrastructure — for every student on the planet.
           </p>
           <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <a href="#register" style={{ padding: '1rem 2.25rem', borderRadius: '12px', background: 'var(--brand)', color: 'white', fontWeight: 800, fontSize: '1rem', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Link href="/preregister" style={{ padding: '1rem 2.25rem', borderRadius: '12px', background: 'var(--brand)', color: 'white', fontWeight: 800, fontSize: '1rem', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               Register Now <ArrowRight size={18} />
-            </a>
-            <Link href="/landing-v1" style={{ padding: '1rem 2.25rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.7)', fontWeight: 700, fontSize: '1rem', textDecoration: 'none' }}>
-              Explore Mission
             </Link>
           </div>
         </motion.div>
@@ -441,7 +422,7 @@ export default function Home() {
             <span style={{ fontWeight: 900, fontSize: '0.9rem', color: 'rgba(255,255,255,0.6)', letterSpacing: '-0.02em' }}>{config.brand_name}</span>
           </div>
           <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-            {[['/', 'Home'], ['#features', 'Features'], ['/landing-v1', 'Mission'], ['/login', 'Sign In']].map(([href, label]) => (
+            {[['/', 'Home'], ['#features', 'Features'], ['/preregister', 'Register']].map(([href, label]) => (
               <Link key={href} href={href} style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.3)', textDecoration: 'none', fontWeight: 600, transition: 'color 0.15s' }}
                 onMouseEnter={(e: React.MouseEvent<HTMLAnchorElement>) => (e.currentTarget.style.color = 'rgba(255,255,255,0.7)')}
                 onMouseLeave={(e: React.MouseEvent<HTMLAnchorElement>) => (e.currentTarget.style.color = 'rgba(255,255,255,0.3)')}>

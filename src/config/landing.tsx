@@ -79,8 +79,8 @@ export const features: Feature[] = [
 
 export const faqs: FAQ[] = [
   {
-    q: 'What is GroupFlow built for?',
-    a: 'GroupFlow is built for student collaboration, contribution visibility, and coordinated project delivery across shared academic workspaces.',
+    q: 'What is Espeezy built for?',
+    a: 'Espeezy is built for student collaboration, contribution visibility, and coordinated project delivery across shared academic workspaces.',
   },
   {
     q: 'Does it support payments and upgrades?',
@@ -88,7 +88,7 @@ export const faqs: FAQ[] = [
   },
   {
     q: 'How is student work protected?',
-    a: 'The app uses authenticated Supabase flows, row-level security, controlled admin writes, and guarded API routes to protect user data.',
+    a: 'The app uses authenticated Firebase flows, Firestore security rules, controlled admin writes, and guarded API routes to protect user data.',
   },
   {
     q: 'Can teams collaborate in real time?',
@@ -155,24 +155,4 @@ export const navMenus: NavMenus = {
     ],
   },
 }
-
-export const Landing: React.FC = () => {
-  return (
-    <div className="flex flex-col justify-center items-center h-screen bg-gray-100">
-      <h1 className="text-4xl font-bold mb-4">Introducing Espeezy</h1>
-      <p className="text-lg mb-4">Your new task management platform</p>
-      <div className="flex flex-wrap justify-center items-center">
-        {features.map((feature, index) => (
-          <div key={index} className="flex flex-col items-center mb-4">
-            <div className="w-16 h-16 rounded-full flex justify-center items-center bg-gray-300 mb-2">
-              {feature.icon}
-            </div>
-            <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
-            <p className="text-gray-600">{feature.desc}</p>
-          </div>
-        ))}
-      </div>
-      <button className="px-4 py-2 mt-4 bg-blue-500 text-white rounded hover:bg-blue-700">Get Started</button>
-    </div>
-  )
-}
+
