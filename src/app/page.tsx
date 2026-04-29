@@ -9,7 +9,7 @@ import {
   GraduationCap, TrendingUp, Heart, Award
 } from 'lucide-react'
 
-import { db } from '@/firebase.config';
+import { db } from '@/lib/firebase'
 
 
 // ─── Types ───────────────────────────────────────────────────────────────────

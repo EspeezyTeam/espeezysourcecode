@@ -1,68 +1,58 @@
 import { NextResponse } from 'next/server'
-import { createAdminClient } from '@/utils/supabase/server'
+import { adminDb } from '@/lib/firebase-admin'
 import { createHash } from 'crypto'
-import { isValidEmail, sanitizeName, sanitizeText, checkBodySize, LIMITS } from '@/utils/sanitize'
+
+export const dynamic = 'force-dynamic'
+
+function isValidEmail(email: unknown): email is string {
+  if (typeof email !== 'string') return false
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254
+}
 
 export async function POST(req: Request) {
   try {
-    // Reject oversized bodies before parsing
-    if (!checkBodySize(req, 50_000)) {
-      return NextResponse.json({ error: 'Payload too large.' }, { status: 413 })
-    }
-
     const body = await req.json().catch(() => null)
     if (!body || typeof body !== 'object' || Array.isArray(body)) {
       return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 })
     }
 
-    const { email, fullName, institution, role, source, campaignRef } = body as Record<string, unknown>
+    const { email, source } = body as Record<string, unknown>
 
     if (!isValidEmail(email)) {
       return NextResponse.json({ error: 'A valid email address is required.' }, { status: 400 })
     }
 
-    // Sanitize all string fields
-    const cleanEmail = (email as string).trim().toLowerCase().slice(0, LIMITS.MAX_EMAIL_LENGTH)
-    const cleanFullName = sanitizeName(fullName)
-    const cleanInstitution = sanitizeText(institution, 200)
-    const cleanRole = typeof role === 'string' && ['student', 'educator', 'professional', 'other'].includes(role)
-      ? role : 'student'
-    const cleanSource = typeof source === 'string' ? sanitizeText(source, 50) : 'organic'
-    const cleanCampaignRef = typeof campaignRef === 'string' ? sanitizeText(campaignRef, 100) : null
+    const cleanEmail = email.trim().toLowerCase()
+    const cleanSource = typeof source === 'string' ? source.slice(0, 50) : 'organic'
 
     // Hash IP for deduplication without storing raw IP
     const ipHeader = req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip') ?? 'unknown'
     const ip = ipHeader.split(',')[0].trim()
     const ipHash = createHash('sha256').update(ip + (process.env.IP_HASH_SALT ?? 'fallback')).digest('hex').slice(0, 16)
-    const userAgent = (req.headers.get('user-agent') ?? '').slice(0, 500)
 
-    const supabase = await createAdminClient()
+    const emailsRef = adminDb.collection('pre_registrations')
 
-    const { error } = await supabase
-      .from('pre_registrations')
-      .insert({
-        email: cleanEmail,
-        full_name: cleanFullName || null,
-        institution: cleanInstitution || null,
-        role: cleanRole,
-        source: cleanSource,
-        campaign_ref: cleanCampaignRef,
-        ip_hash: ipHash,
-        user_agent: userAgent,
+    // Check for duplicate email
+    const existing = await emailsRef.where('email', '==', cleanEmail).limit(1).get()
+    if (!existing.empty) {
+      return NextResponse.json({
+        success: true,
+        message: 'You are already registered! We will be in touch.',
       })
-
-    if (error) {
-      // Unique constraint = already registered
-      if (error.code === '23505') {
-        return NextResponse.json({ success: true, message: 'You are already registered! We will be in touch.' })
-      }
-      console.error('[preregister] DB error:', error.code)
-      return NextResponse.json({ error: 'Registration failed. Please try again.' }, { status: 500 })
     }
 
-    // Fetch updated count
-    const { data: countData } = await supabase.rpc('get_prereg_count')
-    const count = countData ?? 0
+    // Store the email
+    await emailsRef.add({
+      email: cleanEmail,
+      source: cleanSource,
+      ip_hash: ipHash,
+      user_agent: (req.headers.get('user-agent') ?? '').slice(0, 500),
+      created_at: new Date().toISOString(),
+    })
+
+    // Get updated count
+    const countSnap = await emailsRef.count().get()
+    const count = countSnap.data().count
 
     return NextResponse.json({
       success: true,
@@ -70,18 +60,17 @@ export async function POST(req: Request) {
       count,
     })
   } catch (err) {
-    console.error('[preregister] Unexpected error type:', typeof err)
+    console.error('[preregister] Unexpected error:', err)
     return NextResponse.json({ error: 'An unexpected error occurred.' }, { status: 500 })
   }
 }
 
 export async function GET() {
   try {
-    const supabase = await createAdminClient()
-    const { data, error } = await supabase.rpc('get_prereg_count')
-    if (error) throw error
-    return NextResponse.json({ count: data ?? 0 })
+    const countSnap = await adminDb.collection('pre_registrations').count().get()
+    return NextResponse.json({ count: countSnap.data().count })
   } catch (err) {
+    console.error('[preregister] Count error:', err)
     return NextResponse.json({ count: 0 })
   }
 }
