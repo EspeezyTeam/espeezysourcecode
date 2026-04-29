@@ -1,19 +1,27 @@
 import { initializeApp, getApps, cert, type ServiceAccount } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
+import { readFileSync } from 'fs'
+import { resolve } from 'path'
 
 function getAdminApp() {
   if (getApps().length > 0) return getApps()[0]
 
-  // In production, set FIREBASE_SERVICE_ACCOUNT_KEY as a JSON string env var
-  // In dev, you can use a local file path via GOOGLE_APPLICATION_CREDENTIALS
+  // Option 1: Full JSON string in env var (for production / Vercel / Firebase Hosting)
   const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_KEY
-
-  if (serviceAccountJson) {
+  if (serviceAccountJson && serviceAccountJson.startsWith('{')) {
     const serviceAccount: ServiceAccount = JSON.parse(serviceAccountJson)
     return initializeApp({ credential: cert(serviceAccount) })
   }
 
-  // Fallback: uses GOOGLE_APPLICATION_CREDENTIALS env var or default credentials
+  // Option 2: Path to a local JSON key file (for local development)
+  const keyFilePath = process.env.GOOGLE_APPLICATION_CREDENTIALS
+  if (keyFilePath) {
+    const raw = readFileSync(resolve(keyFilePath), 'utf-8')
+    const serviceAccount: ServiceAccount = JSON.parse(raw)
+    return initializeApp({ credential: cert(serviceAccount) })
+  }
+
+  // Option 3: Default credentials (GCP environments)
   return initializeApp()
 }
 
