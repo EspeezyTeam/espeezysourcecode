@@ -6,7 +6,7 @@ import TransientError from '@/components/TransientError'
 import { PrivacyPolicy, TermsOfService, CookiePolicy } from '@/components/Legal/Policies'
 import { BookOpen, User, Lock, ExternalLink } from 'lucide-react'
 import { useFormStatus } from 'react-dom'
-import { db, createBrowserSupabaseClient } from '@/lib/db-client'
+import { createBrowserSupabaseClient } from '@/lib/db-client'
 import { Phone, Hash as HashIcon } from 'lucide-react'
 
 function SubmitButton({ isSignUp, legalAccepted }: { isSignUp: boolean, legalAccepted: boolean }) {

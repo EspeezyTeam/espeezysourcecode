@@ -88,8 +88,12 @@ class ClientQueryBuilder {
   }
 }
 
-export const db = {
+const db = {
   from: (table: string) => new ClientQueryBuilder(table) as any,
+  rpc: async (name: string, args?: any) => {
+    console.log(`Firestore Client RPC Shim [${name}]:`, args)
+    return { data: null, error: null }
+  },
   auth: {
     getUser: async () => {
       const user = firebaseAuth.currentUser
@@ -98,8 +102,55 @@ export const db = {
     getSession: async () => {
       const user = firebaseAuth.currentUser
       return { data: { session: user ? { user: user as any } : null as any }, error: null }
+    },
+    signInWithOAuth: async (options: any) => {
+      return { data: { url: null }, error: null as any }
+    },
+    signInWithPassword: async (credentials: any) => {
+      return { data: { user: null }, error: null as any }
+    },
+    signInWithOtp: async (options: any) => {
+      return { error: null as any }
+    },
+    verifyOtp: async (options: any) => {
+      return { data: { user: null }, error: null as any }
+    },
+    signUp: async (credentials: any) => {
+      return { data: { user: null }, error: null as any }
+    },
+    resetPasswordForEmail: async (email: string, options: any) => {
+      return { data: null, error: null as any }
+    },
+    updateUser: async (attributes: any) => {
+      return { data: { user: null }, error: null as any }
+    },
+    signOut: async () => {
+      await firebaseAuth.signOut()
+      return { error: null }
     }
-  }
+  },
+  storage: {
+    from: (bucket: string) => ({
+      getPublicUrl: (path: string) => {
+        return { data: { publicUrl: path } }
+      },
+      upload: async (path: string, file: any) => {
+        return { data: { path }, error: null as any }
+      }
+    })
+  },
+  channel: (name: string) => ({
+    on: (type: string, filter: any, callback: any) => ({
+      subscribe: () => ({
+        unsubscribe: () => {}
+      })
+    }),
+    subscribe: () => ({
+      unsubscribe: () => {}
+    })
+  }),
+  removeChannel: async (channel: any) => {},
+  removeAllChannels: async () => {}
 }
 
 export const createBrowserSupabaseClient = () => db

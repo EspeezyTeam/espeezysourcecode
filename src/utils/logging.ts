@@ -1,4 +1,4 @@
-import { db, createBrowserSupabaseClient } from '@/lib/db-client'
+import { createBrowserSupabaseClient } from '@/lib/db-client'
 import { ActionType } from '@/types/ui'
 
 export async function logActivity(

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { db, createBrowserSupabaseClient } from '@/lib/db-client'
+import { createBrowserSupabaseClient } from '@/lib/db-client'
 import {
   Users, AlertTriangle, Activity, MessageSquare, DollarSign,
   Search, Loader2, CheckCircle, XCircle, Ban, Send, Mail, ShieldAlert
