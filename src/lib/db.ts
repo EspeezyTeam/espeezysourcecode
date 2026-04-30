@@ -42,6 +42,11 @@ class FirestoreQueryBuilder {
     return this
   }
 
+  in(field: string, values: any[]) {
+    this._where.push({ field, op: 'in', value: values })
+    return this
+  }
+
   limit(count: number) {
     this._limit = count
     return this
@@ -50,6 +55,11 @@ class FirestoreQueryBuilder {
   order(field: string, { ascending = true } = {}) {
     this._order = { field, direction: ascending ? 'asc' : 'desc' }
     return this
+  }
+
+  // Support direct await on the builder
+  then(resolve: any, reject?: any) {
+    return this.get().then(resolve, reject)
   }
 
   async get() {
@@ -89,82 +99,116 @@ class FirestoreQueryBuilder {
     return this.single()
   }
 
-  async insert(values: any | any[]) {
-    const db = getAdminDb()
-    if (!db) return { data: null, error: new Error('Database connection failed') }
+  insert(values: any | any[]) {
+    const builder = this
+    const executor = async () => {
+      const db = getAdminDb()
+      if (!db) return { data: null, error: new Error('Database connection failed') }
 
-    const docs = Array.isArray(values) ? values : [values]
-    try {
-      const results = await Promise.all(docs.map(doc => db.collection(this._collection).add({
-        ...doc,
-        created_at: doc.created_at || new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })))
-      return { data: results.map(r => ({ id: r.id })), error: null }
-    } catch (error: any) {
-      return { data: null, error }
-    }
-  }
-
-  async update(values: any) {
-    const db = getAdminDb()
-    if (!db) return { error: new Error('Database connection failed') }
-
-    try {
-      return {
-        eq: async (field: string, value: any) => {
-          if (field === 'id') {
-            await db.collection(this._collection).doc(value).update({
-              ...values,
-              updated_at: new Date().toISOString()
-            })
-            return { error: null }
-          }
-          const q = await db.collection(this._collection).where(field, '==', value).get()
-          const batch = db.batch()
-          q.docs.forEach((doc: any) => {
-            batch.update(doc.ref, { ...values, updated_at: new Date().toISOString() })
-          })
-          await batch.commit()
-          return { error: null }
-        }
+      const docs = Array.isArray(values) ? values : [values]
+      try {
+        const results = await Promise.all(docs.map(doc => db.collection(builder._collection).add({
+          ...doc,
+          created_at: doc.created_at || new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })))
+        return { data: results.map(r => ({ id: r.id, ...values })), error: null }
+      } catch (error: any) {
+        return { data: null, error }
       }
-    } catch (error: any) {
-      return { error }
+    }
+
+    const promise = executor() as any
+    promise.select = () => ({
+      single: async () => {
+        const { data, error } = await executor()
+        return { data: data && data.length > 0 ? data[0] : null, error }
+      },
+      maybeSingle: async () => {
+        const { data, error } = await executor()
+        return { data: data && data.length > 0 ? data[0] : null, error }
+      }
+    })
+    return promise
+  }
+
+  update(values: any) {
+    const builder = this
+    return {
+      eq: (field: string, value: any) => {
+        const executor = async () => {
+          const db = getAdminDb()
+          if (!db) return { data: null, error: new Error('Database connection failed') }
+          try {
+            if (field === 'id') {
+              await db.collection(builder._collection).doc(value).update({
+                ...values,
+                updated_at: new Date().toISOString()
+              })
+              return { data: [values], error: null }
+            }
+            const q = await db.collection(builder._collection).where(field, '==', value).get()
+            const batch = db.batch()
+            q.docs.forEach((doc: any) => {
+              batch.update(doc.ref, { ...values, updated_at: new Date().toISOString() })
+            })
+            await batch.commit()
+            return { data: q.docs.map(d => d.data()), error: null }
+          } catch (error: any) {
+            return { data: null, error }
+          }
+        }
+
+        const promise = executor() as any
+        promise.select = () => ({
+          single: async () => {
+            const { data, error } = await executor()
+            return { data: data && data.length > 0 ? data[0] : null, error }
+          },
+          maybeSingle: async () => {
+            const { data, error } = await executor()
+            return { data: data && data.length > 0 ? data[0] : null, error }
+          }
+        })
+        return promise
+      }
     }
   }
 
-  async delete() {
-    const db = getAdminDb()
-    if (!db) return { error: new Error('Database connection failed') }
-
+  delete() {
+    const builder = this
     return {
-      eq: async (field: string, value: any) => {
-        try {
-          if (field === 'id') {
-            await db.collection(this._collection).doc(value).delete()
+      eq: (field: string, value: any) => {
+        const executor = async () => {
+          const db = getAdminDb()
+          if (!db) return { error: new Error('Database connection failed') }
+          try {
+            if (field === 'id') {
+              await db.collection(builder._collection).doc(value).delete()
+              return { error: null }
+            }
+            const q = await db.collection(builder._collection).where(field, '==', value).get()
+            const batch = db.batch()
+            q.docs.forEach((doc: any) => batch.delete(doc.ref))
+            await batch.commit()
             return { error: null }
+          } catch (error: any) {
+            return { error }
           }
-          const q = await db.collection(this._collection).where(field, '==', value).get()
-          const batch = db.batch()
-          q.docs.forEach((doc: any) => batch.delete(doc.ref))
-          await batch.commit()
-          return { error: null }
-        } catch (error: any) {
-          return { error }
         }
+        return executor()
       }
     }
   }
 }
 
 export const db = {
-  from: (table: string) => new FirestoreQueryBuilder(table),
+  from: (table: string) => new FirestoreQueryBuilder(table) as any,
   auth: {
     getUser: async () => {
-      // In a real app, you'd get the user from the session/cookie
-      // For now, we return a mock or actual if available
-      return { data: { user: null }, error: null }
+      // Compatibility shim for auth.getUser()
+      // In production, this should integrate with Firebase Admin Auth and Session Cookies
+      return { data: { user: null as any }, error: null }
     }
   }
 }

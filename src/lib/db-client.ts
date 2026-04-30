@@ -29,9 +29,19 @@ class ClientQueryBuilder {
     return this
   }
 
+  in(field: string, values: any[]) {
+    this._where.push({ field, op: 'in', value: values })
+    return this
+  }
+
   limit(count: number) {
     this._limit = count
     return this
+  }
+
+  // Support direct await on the builder
+  then(resolve: any, reject?: any) {
+    return this.get().then(resolve, reject)
   }
 
   async get() {
@@ -79,15 +89,15 @@ class ClientQueryBuilder {
 }
 
 export const db = {
-  from: (table: string) => new ClientQueryBuilder(table),
+  from: (table: string) => new ClientQueryBuilder(table) as any,
   auth: {
     getUser: async () => {
       const user = firebaseAuth.currentUser
-      return { data: { user }, error: null }
+      return { data: { user: user as any }, error: null }
     },
     getSession: async () => {
       const user = firebaseAuth.currentUser
-      return { data: { session: user ? { user } : null }, error: null }
+      return { data: { session: user ? { user: user as any } : null as any }, error: null }
     }
   }
 }
