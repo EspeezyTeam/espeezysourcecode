@@ -62,3 +62,4 @@ next-env.d.ts
 .agents/
 .windsurf/
 skills-lock.json
+node-v24.15.0-linux-x64/
