@@ -62,9 +62,17 @@ export async function POST(req: Request) {
       count,
     })
   } catch (err) {
+    if (isFirestoreNotFound(err)) {
+      console.warn('[preregister] Firestore database not found — create it in Firebase Console (Firestore Database → Create database)')
+      return NextResponse.json({ error: 'Service temporarily unavailable.' }, { status: 503 })
+    }
     console.error('[preregister] Unexpected error:', err)
     return NextResponse.json({ error: 'An unexpected error occurred.' }, { status: 500 })
   }
+}
+
+function isFirestoreNotFound(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && (err as { code?: number }).code === 5
 }
 
 export async function GET() {
@@ -74,6 +82,10 @@ export async function GET() {
     const countSnap = await adminDb.collection('pre_registrations').count().get()
     return NextResponse.json({ count: countSnap.data().count })
   } catch (err) {
+    if (isFirestoreNotFound(err)) {
+      console.warn('[preregister] Firestore database not found — create it in Firebase Console (Firestore Database → Create database)')
+      return NextResponse.json({ count: 0 })
+    }
     console.error('[preregister] Count error:', err)
     return NextResponse.json({ count: 0 })
   }
