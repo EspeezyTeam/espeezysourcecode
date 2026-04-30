@@ -11,6 +11,8 @@ import ToasterModeManager from '@/components/ToasterModeManager';
 import ClientShell from '@/components/ClientShell';
 import type { Viewport } from 'next';
 
+const enableVercelTelemetry = process.env.NEXT_PUBLIC_ENABLE_VERCEL_TELEMETRY === 'true' || process.env.VERCEL === '1'
+
 export const metadata: Metadata = {
   title: 'Espeezy - Team Projects Made Simple',
   description: 'The easiest way for students to work together on group projects.',
@@ -58,8 +60,8 @@ export default function RootLayout({
             {children}
             <ClientShell />
             <SessionGuard />
-            <Analytics />
-            <SpeedInsights />
+            {enableVercelTelemetry ? <Analytics /> : null}
+            {enableVercelTelemetry ? <SpeedInsights /> : null}
           </NotificationProvider>
         </ConnectivityProvider>
 
