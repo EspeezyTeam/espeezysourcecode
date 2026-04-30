@@ -1,111 +1,85 @@
-import { NextRequest, NextResponse } from 'next/server'
-import Stripe from 'stripe'
-import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
+import { NextResponse } from 'next/server'
+import crypto from 'crypto'
+import { getAdminDb } from '@/lib/firebase-admin'
 
-function getStripeClient(): Stripe {
-  const stripeKey = process.env.STRIPE_SECRET_KEY
-  if (!stripeKey) {
-    throw new Error('STRIPE_SECRET_KEY is not configured')
-  }
-  return new Stripe(stripeKey, { apiVersion: '2026-03-25.dahlia' as Stripe.LatestApiVersion })
-}
+export const dynamic = 'force-dynamic'
 
-// POST /api/hustle/connect — create Stripe Connect onboarding link
-export async function POST(_req: NextRequest) {
-  let stripe: Stripe
+
+export async function POST(req: Request) {
   try {
-    stripe = getStripeClient()
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Stripe is not configured'
-    return NextResponse.json({ error: msg }, { status: 500 })
-  }
+    const rawBody = await req.text()
+    const adminDb = getAdminDb()
+    if (!adminDb) return NextResponse.json({ error: 'Service Unavailable' }, { status: 503 })
+    const signature = req.headers.get('x-hub-signature-256')
+    const webhookSecret = process.env.GITHUB_WEBHOOK_SECRET
 
-  const db = await createServerSupabaseClient()
-  const { data: { user } } = await db.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const svc = await createAdminClient()
-
-  // Fetch or create connected account
-  const { data: profile } = await svc.from('profiles').select('stripe_account_id, stripe_account_status, account_status, full_name, email').eq('id', user.id).single()
-
-  if (profile?.account_status === 'deactivated') {
-    return NextResponse.json({ error: 'Your account has been permanently deactivated.' }, { status: 403 })
-  }
-
-  let accountId = profile?.stripe_account_id
-
-  if (!accountId) {
-    // Create a new Express Connect account
-    const account = await stripe.accounts.create({
-      type: 'express',
-      email: profile?.email ?? undefined,
-      capabilities: {
-        transfers: { requested: true },
-        card_payments: { requested: true },
-      },
-      business_type: 'individual',
-      metadata: { platform_user_id: user.id },
-    })
-    accountId = account.id
-
-    await svc.from('profiles').update({
-      stripe_account_id: accountId,
-      stripe_account_status: 'pending',
-    }).eq('id', user.id)
-  }
-
-  // Create onboarding link
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://espeezy.com'
-  const accountLink = await stripe.accountLinks.create({
-    account: accountId,
-    refresh_url: `${appUrl}/dashboard/hustle/connect?refresh=1`,
-    return_url: `${appUrl}/dashboard/hustle/connect?success=1`,
-    type: 'account_onboarding',
-  })
-
-  await svc.from('profiles').update({ stripe_onboarding_url: accountLink.url }).eq('id', user.id)
-
-  return NextResponse.json({ url: accountLink.url })
-}
-
-// GET /api/hustle/connect — check Connect account status
-export async function GET(_req: NextRequest) {
-  let stripe: Stripe
-  try {
-    stripe = getStripeClient()
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Stripe is not configured'
-    return NextResponse.json({ error: msg }, { status: 500 })
-  }
-
-  const db = await createServerSupabaseClient()
-  const { data: { user } } = await db.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const svc = await createAdminClient()
-  const { data: profile } = await svc.from('profiles').select('stripe_account_id, stripe_account_status').eq('id', user.id).single()
-
-  if (!profile?.stripe_account_id) {
-    return NextResponse.json({ status: 'none' })
-  }
-
-  // Check with Stripe for current status
-  try {
-    const account = await stripe.accounts.retrieve(profile.stripe_account_id)
-    const newStatus = account.payouts_enabled ? 'active' : (account.details_submitted ? 'restricted' : 'pending')
-
-    if (newStatus !== profile.stripe_account_status) {
-      await svc.from('profiles').update({ stripe_account_status: newStatus }).eq('id', user.id)
+    if (!webhookSecret) {
+      console.warn("GITHUB_WEBHOOK_SECRET is not set. Bypassing validation (NOT FOR PRODUCTION).")
+    } else if (signature) {
+      const hmac = crypto.createHmac('sha256', webhookSecret)
+      const digest = 'sha256=' + hmac.update(rawBody).digest('hex')
+      if (signature !== digest) {
+        return new NextResponse('Unauthorized: Invalid Signature', { status: 401 })
+      }
     }
 
-    return NextResponse.json({
-      status: newStatus,
-      payoutsEnabled: account.payouts_enabled,
-      chargesEnabled: account.charges_enabled,
-      detailsSubmitted: account.details_submitted,
-    })
-  } catch {
-    return NextResponse.json({ status: profile.stripe_account_status ?? 'unknown' })
+    const payload = JSON.parse(rawBody)
+
+    // Only process push events with commits
+    if (!payload.commits || payload.commits.length === 0) {
+      return new NextResponse('No commits to process', { status: 200 })
+    }
+
+    const uuidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+
+    for (const commit of payload.commits) {
+      const match = commit.message.match(uuidRegex)
+      
+      if (match) {
+        const taskId = match[0]
+        
+        // 1. Fetch the Task to find who it's assigned to
+        const taskRef = adminDb.collection('tasks').doc(taskId)
+        const taskSnap = await taskRef.get()
+
+        if (taskSnap.exists && taskSnap.data()?.is_coding_task) {
+           const task = taskSnap.data()!
+           const impactScore = 15; // standard base reward
+           
+           // 2. Record the Commit
+           await adminDb.collection('commits').add({
+             hash: commit.id,
+             message: commit.message,
+             author_email: commit.author.email,
+             task_id: taskId,
+             impact_score: impactScore,
+             lines_added: 0,
+             lines_deleted: 0,
+             created_at: new Date().toISOString()
+           })
+
+           // 3. Update Task Status to Done
+           await taskRef.update({ status: 'Done' })
+
+           // 4. Update Profile Score across all assignees
+           if (task.assignees && Array.isArray(task.assignees)) {
+              for (const userId of task.assignees) {
+                 const profileRef = adminDb.collection('profiles').doc(userId)
+                 const profileSnap = await profileRef.get()
+                 if (profileSnap.exists) {
+                    const currentScore = profileSnap.data()?.total_score || 0
+                    await profileRef.update({ total_score: currentScore + impactScore })
+                 }
+              }
+           }
+        }
+      }
+    }
+
+    return new NextResponse('Webhook processed successfully', { status: 200 })
+    
+  } catch (err: any) {
+    console.error("Webhook Error:", err.message)
+    return new NextResponse(`Server Error: ${err.message}`, { status: 500 })
   }
 }

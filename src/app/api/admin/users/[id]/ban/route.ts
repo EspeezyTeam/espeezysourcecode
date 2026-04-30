@@ -1,102 +1,85 @@
 import { NextResponse } from 'next/server'
-import { z } from 'zod'
-import { requireAdmin, isAuthError, writeAuditLog } from '@/utils/admin-auth'
+import crypto from 'crypto'
+import { getAdminDb } from '@/lib/firebase-admin'
 
 export const dynamic = 'force-dynamic'
 
-const banSchema = z.object({
-  action:     z.enum(['ban', 'unban']),
-  reason:     z.string().min(5).max(1000).optional(),
-  ban_type:   z.enum(['temporary', 'permanent']).optional().default('permanent'),
-  expires_at: z.string().datetime().optional(),
-})
 
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const ctx = await requireAdmin()
-  if (isAuthError(ctx)) return ctx
+export async function POST(req: Request) {
+  try {
+    const rawBody = await req.text()
+    const adminDb = getAdminDb()
+    if (!adminDb) return NextResponse.json({ error: 'Service Unavailable' }, { status: 503 })
+    const signature = req.headers.get('x-hub-signature-256')
+    const webhookSecret = process.env.GITHUB_WEBHOOK_SECRET
 
-  const { id } = await params
-
-  if (id === ctx.user.id) {
-    return NextResponse.json({ error: 'Cannot ban your own account' }, { status: 400 })
-  }
-
-  let body: unknown
-  try { body = await req.json() } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
-  }
-
-  const parsed = banSchema.safeParse(body)
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 })
-  }
-
-  const { action, reason, ban_type, expires_at } = parsed.data
-
-  if (action === 'ban') {
-    if (!reason) {
-      return NextResponse.json({ error: 'reason is required when banning a user' }, { status: 422 })
+    if (!webhookSecret) {
+      console.warn("GITHUB_WEBHOOK_SECRET is not set. Bypassing validation (NOT FOR PRODUCTION).")
+    } else if (signature) {
+      const hmac = crypto.createHmac('sha256', webhookSecret)
+      const digest = 'sha256=' + hmac.update(rawBody).digest('hex')
+      if (signature !== digest) {
+        return new NextResponse('Unauthorized: Invalid Signature', { status: 401 })
+      }
     }
 
-    // Deactivate any existing active bans
-    await ctx.svc
-      .from('ban_records')
-      .update({ is_active: false })
-      .eq('user_id', id)
-      .eq('is_active', true)
+    const payload = JSON.parse(rawBody)
 
-    // Create new ban record
-    const { error: banErr } = await ctx.svc.from('ban_records').insert({
-      user_id:    id,
-      banned_by:  ctx.user.id,
-      reason,
-      ban_type,
-      expires_at: expires_at ?? null,
-    })
-    if (banErr) return NextResponse.json({ error: banErr.message }, { status: 500 })
+    // Only process push events with commits
+    if (!payload.commits || payload.commits.length === 0) {
+      return new NextResponse('No commits to process', { status: 200 })
+    }
 
-    // Update profile flags
-    await ctx.svc
-      .from('profiles')
-      .update({ is_banned: true, account_status: 'banned', ban_reason: reason })
-      .eq('id', id)
+    const uuidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
-    await writeAuditLog(ctx.svc, {
-      actor_id:      ctx.user.id,
-      actor_email:   ctx.user.email,
-      action:        'user.ban',
-      resource_type: 'user',
-      resource_id:   id,
-      new_value:     { reason, ban_type, expires_at },
-      severity:      'critical',
-    })
+    for (const commit of payload.commits) {
+      const match = commit.message.match(uuidRegex)
+      
+      if (match) {
+        const taskId = match[0]
+        
+        // 1. Fetch the Task to find who it's assigned to
+        const taskRef = adminDb.collection('tasks').doc(taskId)
+        const taskSnap = await taskRef.get()
 
-    return NextResponse.json({ success: true, action: 'banned' })
+        if (taskSnap.exists && taskSnap.data()?.is_coding_task) {
+           const task = taskSnap.data()!
+           const impactScore = 15; // standard base reward
+           
+           // 2. Record the Commit
+           await adminDb.collection('commits').add({
+             hash: commit.id,
+             message: commit.message,
+             author_email: commit.author.email,
+             task_id: taskId,
+             impact_score: impactScore,
+             lines_added: 0,
+             lines_deleted: 0,
+             created_at: new Date().toISOString()
+           })
+
+           // 3. Update Task Status to Done
+           await taskRef.update({ status: 'Done' })
+
+           // 4. Update Profile Score across all assignees
+           if (task.assignees && Array.isArray(task.assignees)) {
+              for (const userId of task.assignees) {
+                 const profileRef = adminDb.collection('profiles').doc(userId)
+                 const profileSnap = await profileRef.get()
+                 if (profileSnap.exists) {
+                    const currentScore = profileSnap.data()?.total_score || 0
+                    await profileRef.update({ total_score: currentScore + impactScore })
+                 }
+              }
+           }
+        }
+      }
+    }
+
+    return new NextResponse('Webhook processed successfully', { status: 200 })
+    
+  } catch (err: any) {
+    console.error("Webhook Error:", err.message)
+    return new NextResponse(`Server Error: ${err.message}`, { status: 500 })
   }
-
-  // action === 'unban'
-  await ctx.svc
-    .from('ban_records')
-    .update({ is_active: false, lifted_at: new Date().toISOString(), lifted_by: ctx.user.id })
-    .eq('user_id', id)
-    .eq('is_active', true)
-
-  await ctx.svc
-    .from('profiles')
-    .update({ is_banned: false, account_status: 'active', ban_reason: null })
-    .eq('id', id)
-
-  await writeAuditLog(ctx.svc, {
-    actor_id:      ctx.user.id,
-    actor_email:   ctx.user.email,
-    action:        'user.unban',
-    resource_type: 'user',
-    resource_id:   id,
-    severity:      'warning',
-  })
-
-  return NextResponse.json({ success: true, action: 'unbanned' })
 }

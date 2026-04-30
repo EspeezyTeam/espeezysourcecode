@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin'
 import crypto from 'crypto'
+export const dynamic = 'force-dynamic'
+
 
 const PAGE_SIZE = 20
 

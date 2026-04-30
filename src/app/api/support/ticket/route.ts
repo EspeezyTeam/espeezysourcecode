@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 import { notifySupportTicket } from '@/services/email'
+export const dynamic = 'force-dynamic'
+
 
 export async function POST(req: NextRequest) {
   const db = await createServerSupabaseClient()

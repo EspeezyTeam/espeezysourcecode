@@ -1,184 +1,85 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
-import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
+import { NextResponse } from 'next/server'
+import crypto from 'crypto'
+import { getAdminDb } from '@/lib/firebase-admin'
 
 export const dynamic = 'force-dynamic'
 
-const AnswerSchema = z.object({
-  question_id:  z.string().uuid(),
-  answer:       z.enum(['a', 'b', 'c', 'd']),
-  time_taken_ms: z.number().int().min(0).max(120_000).optional(),
-})
 
-type Props = { params: Promise<{ id: string }> }
+export async function POST(req: Request) {
+  try {
+    const rawBody = await req.text()
+    const adminDb = getAdminDb()
+    if (!adminDb) return NextResponse.json({ error: 'Service Unavailable' }, { status: 503 })
+    const signature = req.headers.get('x-hub-signature-256')
+    const webhookSecret = process.env.GITHUB_WEBHOOK_SECRET
 
-// POST /api/quiz/sessions/[id]/answer — submit an answer, get next question or final result
-export async function POST(req: NextRequest, { params }: Props) {
-  const db = await createServerSupabaseClient()
-  const { data: { user } } = await db.auth.getUser()
-    .catch(() => ({ data: { user: null } }))
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const { id: session_id } = await params
-
-  const body = await req.json().catch(() => null)
-  const parsed = AnswerSchema.safeParse(body)
-  if (!parsed.success) {
-    return NextResponse.json({ error: 'Invalid request', details: parsed.error.flatten() }, { status: 422 })
-  }
-
-  const { question_id, answer, time_taken_ms } = parsed.data
-
-  const admin = await createAdminClient()
-
-  // Load session — must belong to user and be active
-  const { data: session } = await admin
-    .from('quiz_sessions')
-    .select('*')
-    .eq('id', session_id)
-    .eq('user_id', user.id)
-    .eq('status', 'active')
-    .single()
-
-  if (!session) return NextResponse.json({ error: 'Session not found or already completed' }, { status: 404 })
-  if (new Date(session.expires_at) < new Date()) {
-    await admin.from('quiz_sessions').update({ status: 'expired' }).eq('id', session_id)
-    return NextResponse.json({ error: 'Session expired' }, { status: 410 })
-  }
-
-  // Verify this question belongs to the session order
-  const questionIds: string[] = session.metadata?.question_ids ?? []
-  if (!questionIds.includes(question_id)) {
-    return NextResponse.json({ error: 'Question does not belong to this session' }, { status: 422 })
-  }
-
-  // Prevent re-answering
-  const { data: existing } = await admin
-    .from('quiz_session_answers')
-    .select('id')
-    .eq('session_id', session_id)
-    .eq('question_id', question_id)
-    .maybeSingle()
-
-  if (existing) return NextResponse.json({ error: 'Already answered this question' }, { status: 409 })
-
-  // Fetch correct answer server-side
-  const { data: question } = await admin
-    .from('quiz_questions')
-    .select('correct_answer, points_value, explanation, option_a, option_b, option_c, option_d, question')
-    .eq('id', question_id)
-    .single()
-
-  if (!question) return NextResponse.json({ error: 'Question not found' }, { status: 404 })
-
-  const is_correct = answer === question.correct_answer
-  const points_earned = is_correct ? question.points_value : 0
-
-  // Record answer
-  await admin.from('quiz_session_answers').insert({
-    session_id,
-    question_id,
-    answer_given: answer,
-    is_correct,
-    points_earned,
-    time_taken_ms: time_taken_ms ?? null,
-  })
-
-  // Update session counters
-  const newAnswered = session.questions_answered + 1
-  const newCorrect  = session.correct_answers + (is_correct ? 1 : 0)
-  const newScore    = session.score + points_earned
-  const isLastQuestion = newAnswered >= session.questions_total
-
-  let sessionUpdate: Record<string, unknown> = {
-    questions_answered: newAnswered,
-    correct_answers: newCorrect,
-    score: newScore,
-  }
-
-  let prizeInfo: { prize_cents: number; rank?: number } | null = null
-
-  if (isLastQuestion) {
-    // Compute prize — based on % correct vs difficulty tier
-    const pct = newCorrect / session.questions_total
-    const { data: category } = await admin
-      .from('quiz_categories')
-      .select('difficulty_tier, prize_pool_cents')
-      .eq('id', session.category_id)
-      .single()
-
-    let prize_cents = 0
-    if (category && pct >= 0.6) { // minimum 60% to win any prize
-      const tierMultiplier: Record<string, number> = {
-        easy: 0.01, medium: 0.03, hard: 0.07, expert: 0.15, legendary: 0.30,
+    if (!webhookSecret) {
+      console.warn("GITHUB_WEBHOOK_SECRET is not set. Bypassing validation (NOT FOR PRODUCTION).")
+    } else if (signature) {
+      const hmac = crypto.createHmac('sha256', webhookSecret)
+      const digest = 'sha256=' + hmac.update(rawBody).digest('hex')
+      if (signature !== digest) {
+        return new NextResponse('Unauthorized: Invalid Signature', { status: 401 })
       }
-      const mult = tierMultiplier[category.difficulty_tier] ?? 0.01
-      prize_cents = Math.floor(category.prize_pool_cents * mult * pct)
     }
 
-    sessionUpdate = {
-      ...sessionUpdate,
-      status: 'completed',
-      completed_at: new Date().toISOString(),
-      prize_cents_won: prize_cents,
+    const payload = JSON.parse(rawBody)
+
+    // Only process push events with commits
+    if (!payload.commits || payload.commits.length === 0) {
+      return new NextResponse('No commits to process', { status: 200 })
     }
 
-    // Grant reward points
-    const { data: rule } = await admin
-      .from('reward_rules')
-      .select('points_awarded, cash_bonus_cents')
-      .eq('action', 'earned_quiz_win')
-      .eq('is_active', true)
-      .single()
+    const uuidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
-    if (pct >= 0.6 && rule) {
-      await admin.from('reward_ledger').insert({
-        user_id: user.id,
-        type: 'earned_quiz_win',
-        points: Math.round(rule.points_awarded * (pct)),
-        cash_value_cents: prize_cents,
-        description: `Quiz completed — ${Math.round(pct * 100)}% correct`,
-        reference_id: session_id,
-        reference_type: 'quiz_session',
-      })
+    for (const commit of payload.commits) {
+      const match = commit.message.match(uuidRegex)
+      
+      if (match) {
+        const taskId = match[0]
+        
+        // 1. Fetch the Task to find who it's assigned to
+        const taskRef = adminDb.collection('tasks').doc(taskId)
+        const taskSnap = await taskRef.get()
+
+        if (taskSnap.exists && taskSnap.data()?.is_coding_task) {
+           const task = taskSnap.data()!
+           const impactScore = 15; // standard base reward
+           
+           // 2. Record the Commit
+           await adminDb.collection('commits').add({
+             hash: commit.id,
+             message: commit.message,
+             author_email: commit.author.email,
+             task_id: taskId,
+             impact_score: impactScore,
+             lines_added: 0,
+             lines_deleted: 0,
+             created_at: new Date().toISOString()
+           })
+
+           // 3. Update Task Status to Done
+           await taskRef.update({ status: 'Done' })
+
+           // 4. Update Profile Score across all assignees
+           if (task.assignees && Array.isArray(task.assignees)) {
+              for (const userId of task.assignees) {
+                 const profileRef = adminDb.collection('profiles').doc(userId)
+                 const profileSnap = await profileRef.get()
+                 if (profileSnap.exists) {
+                    const currentScore = profileSnap.data()?.total_score || 0
+                    await profileRef.update({ total_score: currentScore + impactScore })
+                 }
+              }
+           }
+        }
+      }
     }
 
-    // In-app notification
-    await admin.from('notifications').insert({
-      user_id: user.id,
-      type: 'quiz_result',
-      title: prize_cents > 0 ? `🏆 You won $${(prize_cents / 100).toFixed(2)}!` : `Quiz complete — ${Math.round(pct * 100)}% correct`,
-      message: `You answered ${newCorrect}/${session.questions_total} questions correctly.${prize_cents > 0 ? ` Prize: $${(prize_cents / 100).toFixed(2)}` : ''}`,
-      link: `/dashboard/wallet`,
-    })
-
-    prizeInfo = { prize_cents }
+    return new NextResponse('Webhook processed successfully', { status: 200 })
+    
+  } catch (err: any) {
+    console.error("Webhook Error:", err.message)
+    return new NextResponse(`Server Error: ${err.message}`, { status: 500 })
   }
-
-  await admin.from('quiz_sessions').update(sessionUpdate).eq('id', session_id)
-
-  // Get next question if not last
-  let next_question = null
-  if (!isLastQuestion) {
-    const nextQuestionId = questionIds[newAnswered]
-    const { data: nq } = await admin
-      .from('quiz_questions')
-      .select('id, question, option_a, option_b, option_c, option_d, difficulty, points_value, time_limit_secs')
-      .eq('id', nextQuestionId)
-      .single()
-    next_question = nq
-  }
-
-  return NextResponse.json({
-    is_correct,
-    correct_answer: question.correct_answer,
-    explanation: question.explanation ?? null,
-    points_earned,
-    session_score: newScore,
-    questions_answered: newAnswered,
-    questions_total: session.questions_total,
-    is_complete: isLastQuestion,
-    prize: prizeInfo,
-    next_question,
-  })
 }

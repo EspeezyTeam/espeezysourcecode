@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { taskWorkflow } from '@/workflows/taskWorkflow'
 import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 import { start } from '@/utils/workflow'
+export const dynamic = 'force-dynamic'
+
 
 export async function POST(req: Request) {
   const db = await createServerSupabaseClient()

@@ -1,69 +1,85 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
+import { NextResponse } from 'next/server'
+import crypto from 'crypto'
+import { getAdminDb } from '@/lib/firebase-admin'
 
 export const dynamic = 'force-dynamic'
 
-async function requireAdmin() {
-  const db = await createServerSupabaseClient()
-  const { data: { user }, error } = await db.auth.getUser()
-  if (error || !user) return null
-  const svc = await createAdminClient()
-  const { data: profile } = await svc.from('profiles').select('role').eq('id', user.id).single()
-  if (profile?.role !== 'admin') return null
-  return { user, svc }
-}
 
-// PATCH /api/admin/agents/[id] — update agent status, system_prompt, or capabilities
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const auth = await requireAdmin()
-  if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export async function POST(req: Request) {
+  try {
+    const rawBody = await req.text()
+    const adminDb = getAdminDb()
+    if (!adminDb) return NextResponse.json({ error: 'Service Unavailable' }, { status: 503 })
+    const signature = req.headers.get('x-hub-signature-256')
+    const webhookSecret = process.env.GITHUB_WEBHOOK_SECRET
 
-  const { id } = await params
-  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+    if (!webhookSecret) {
+      console.warn("GITHUB_WEBHOOK_SECRET is not set. Bypassing validation (NOT FOR PRODUCTION).")
+    } else if (signature) {
+      const hmac = crypto.createHmac('sha256', webhookSecret)
+      const digest = 'sha256=' + hmac.update(rawBody).digest('hex')
+      if (signature !== digest) {
+        return new NextResponse('Unauthorized: Invalid Signature', { status: 401 })
+      }
+    }
 
-  const body = await req.json().catch(() => null)
-  if (!body) return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
+    const payload = JSON.parse(rawBody)
 
-  const allowed = ['status', 'system_prompt', 'capabilities', 'name', 'specialisation', 'role']
-  const updates: Record<string, unknown> = {}
-  for (const key of allowed) {
-    if (key in body) updates[key] = body[key]
+    // Only process push events with commits
+    if (!payload.commits || payload.commits.length === 0) {
+      return new NextResponse('No commits to process', { status: 200 })
+    }
+
+    const uuidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+
+    for (const commit of payload.commits) {
+      const match = commit.message.match(uuidRegex)
+      
+      if (match) {
+        const taskId = match[0]
+        
+        // 1. Fetch the Task to find who it's assigned to
+        const taskRef = adminDb.collection('tasks').doc(taskId)
+        const taskSnap = await taskRef.get()
+
+        if (taskSnap.exists && taskSnap.data()?.is_coding_task) {
+           const task = taskSnap.data()!
+           const impactScore = 15; // standard base reward
+           
+           // 2. Record the Commit
+           await adminDb.collection('commits').add({
+             hash: commit.id,
+             message: commit.message,
+             author_email: commit.author.email,
+             task_id: taskId,
+             impact_score: impactScore,
+             lines_added: 0,
+             lines_deleted: 0,
+             created_at: new Date().toISOString()
+           })
+
+           // 3. Update Task Status to Done
+           await taskRef.update({ status: 'Done' })
+
+           // 4. Update Profile Score across all assignees
+           if (task.assignees && Array.isArray(task.assignees)) {
+              for (const userId of task.assignees) {
+                 const profileRef = adminDb.collection('profiles').doc(userId)
+                 const profileSnap = await profileRef.get()
+                 if (profileSnap.exists) {
+                    const currentScore = profileSnap.data()?.total_score || 0
+                    await profileRef.update({ total_score: currentScore + impactScore })
+                 }
+              }
+           }
+        }
+      }
+    }
+
+    return new NextResponse('Webhook processed successfully', { status: 200 })
+    
+  } catch (err: any) {
+    console.error("Webhook Error:", err.message)
+    return new NextResponse(`Server Error: ${err.message}`, { status: 500 })
   }
-
-  if (Object.keys(updates).length === 0) {
-    return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })
-  }
-
-  const { data, error } = await auth.svc
-    .from('agents')
-    .update(updates)
-    .eq('id', id)
-    .select()
-    .single()
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ agent: data })
-}
-
-// DELETE /api/admin/agents/[id] — remove an agent
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const auth = await requireAdmin()
-  if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const { id } = await params
-  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
-
-  const { error } = await auth.svc
-    .from('agents')
-    .delete()
-    .eq('id', id)
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true })
 }

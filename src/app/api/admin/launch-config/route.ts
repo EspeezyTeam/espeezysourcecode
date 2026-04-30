@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
+export const dynamic = 'force-dynamic'
+
 
 export async function GET() {
   // Public endpoint — returns non-sensitive config needed by pre-reg page

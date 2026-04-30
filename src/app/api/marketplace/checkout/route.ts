@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 import { createCheckoutSession } from '@/services/stripe'
+export const dynamic = 'force-dynamic'
+
 
 export async function POST(req: Request) {
   const db = await createServerSupabaseClient()

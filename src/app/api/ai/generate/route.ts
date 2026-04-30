@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
+export const dynamic = 'force-dynamic'
+
 
 const OPENAI_API_URL = process.env.OPENAI_API_BASE || 'https://api.openai.com/v1'
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || process.env.AI_API_KEY || process.env.AI_GATEWAY_KEY

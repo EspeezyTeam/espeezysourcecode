@@ -1,124 +1,85 @@
 import { NextResponse } from 'next/server'
-import { z } from 'zod'
-import { requireAdmin, isAuthError, writeAuditLog } from '@/utils/admin-auth'
+import crypto from 'crypto'
+import { getAdminDb } from '@/lib/firebase-admin'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const ctx = await requireAdmin()
-  if (isAuthError(ctx)) return ctx
 
-  const { id } = await params
+export async function POST(req: Request) {
+  try {
+    const rawBody = await req.text()
+    const adminDb = getAdminDb()
+    if (!adminDb) return NextResponse.json({ error: 'Service Unavailable' }, { status: 503 })
+    const signature = req.headers.get('x-hub-signature-256')
+    const webhookSecret = process.env.GITHUB_WEBHOOK_SECRET
 
-  const { data: group, error } = await ctx.svc
-    .from('groups')
-    .select('*')
-    .eq('id', id)
-    .single()
+    if (!webhookSecret) {
+      console.warn("GITHUB_WEBHOOK_SECRET is not set. Bypassing validation (NOT FOR PRODUCTION).")
+    } else if (signature) {
+      const hmac = crypto.createHmac('sha256', webhookSecret)
+      const digest = 'sha256=' + hmac.update(rawBody).digest('hex')
+      if (signature !== digest) {
+        return new NextResponse('Unauthorized: Invalid Signature', { status: 401 })
+      }
+    }
 
-  if (error || !group) return NextResponse.json({ error: 'Group not found' }, { status: 404 })
+    const payload = JSON.parse(rawBody)
 
-  // Member count
-  const { count: memberCount } = await ctx.svc
-    .from('profiles')
-    .select('*', { count: 'exact', head: true })
-    .eq('group_id', id)
+    // Only process push events with commits
+    if (!payload.commits || payload.commits.length === 0) {
+      return new NextResponse('No commits to process', { status: 200 })
+    }
 
-  // Task count
-  const { count: taskCount } = await ctx.svc
-    .from('tasks')
-    .select('*', { count: 'exact', head: true })
-    .eq('group_id', id)
+    const uuidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
-  return NextResponse.json({ group, memberCount: memberCount ?? 0, taskCount: taskCount ?? 0 })
-}
+    for (const commit of payload.commits) {
+      const match = commit.message.match(uuidRegex)
+      
+      if (match) {
+        const taskId = match[0]
+        
+        // 1. Fetch the Task to find who it's assigned to
+        const taskRef = adminDb.collection('tasks').doc(taskId)
+        const taskSnap = await taskRef.get()
 
-const patchSchema = z.object({
-  status:       z.enum(['active', 'archived', 'suspended']).optional(),
-  featured:     z.boolean().optional(),
-  admin_notes:  z.string().max(2000).optional(),
-  capacity:     z.number().int().min(1).max(10000).optional(),
-  description:  z.string().max(2000).optional(),
-})
+        if (taskSnap.exists && taskSnap.data()?.is_coding_task) {
+           const task = taskSnap.data()!
+           const impactScore = 15; // standard base reward
+           
+           // 2. Record the Commit
+           await adminDb.collection('commits').add({
+             hash: commit.id,
+             message: commit.message,
+             author_email: commit.author.email,
+             task_id: taskId,
+             impact_score: impactScore,
+             lines_added: 0,
+             lines_deleted: 0,
+             created_at: new Date().toISOString()
+           })
 
-export async function PATCH(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const ctx = await requireAdmin()
-  if (isAuthError(ctx)) return ctx
+           // 3. Update Task Status to Done
+           await taskRef.update({ status: 'Done' })
 
-  const { id } = await params
+           // 4. Update Profile Score across all assignees
+           if (task.assignees && Array.isArray(task.assignees)) {
+              for (const userId of task.assignees) {
+                 const profileRef = adminDb.collection('profiles').doc(userId)
+                 const profileSnap = await profileRef.get()
+                 if (profileSnap.exists) {
+                    const currentScore = profileSnap.data()?.total_score || 0
+                    await profileRef.update({ total_score: currentScore + impactScore })
+                 }
+              }
+           }
+        }
+      }
+    }
 
-  let body: unknown
-  try { body = await req.json() } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    return new NextResponse('Webhook processed successfully', { status: 200 })
+    
+  } catch (err: any) {
+    console.error("Webhook Error:", err.message)
+    return new NextResponse(`Server Error: ${err.message}`, { status: 500 })
   }
-
-  const parsed = patchSchema.safeParse(body)
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 })
-  }
-
-  const { data: oldGroup } = await ctx.svc
-    .from('groups')
-    .select('status, featured, admin_notes')
-    .eq('id', id)
-    .single()
-
-  const { data: updated, error } = await ctx.svc
-    .from('groups')
-    .update(parsed.data)
-    .eq('id', id)
-    .select()
-    .single()
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  await writeAuditLog(ctx.svc, {
-    actor_id:      ctx.user.id,
-    actor_email:   ctx.user.email,
-    action:        'group.update',
-    resource_type: 'group',
-    resource_id:   id,
-    old_value:     oldGroup,
-    new_value:     parsed.data,
-    severity:      parsed.data.status === 'suspended' ? 'warning' : 'info',
-  })
-
-  return NextResponse.json({ group: updated })
-}
-
-export async function DELETE(
-  _req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const ctx = await requireAdmin()
-  if (isAuthError(ctx)) return ctx
-
-  const { id } = await params
-
-  const { data: group } = await ctx.svc
-    .from('groups')
-    .select('name, owner_id')
-    .eq('id', id)
-    .single()
-
-  const { error } = await ctx.svc.from('groups').delete().eq('id', id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  await writeAuditLog(ctx.svc, {
-    actor_id:      ctx.user.id,
-    actor_email:   ctx.user.email,
-    action:        'group.delete',
-    resource_type: 'group',
-    resource_id:   id,
-    old_value:     group,
-    severity:      'critical',
-  })
-
-  return NextResponse.json({ success: true })
 }

@@ -1,153 +1,85 @@
-/**
- * GET /api/student/certificate/[id]/pdf
- * Generate and stream a verifiable PDF certificate using jsPDF.
- *
- * Public endpoint — the certificate ID acts as the access token.
- * The PDF is generated on-the-fly (no stored file needed).
- */
-import { NextRequest, NextResponse } from 'next/server'
-import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
-import jsPDF from 'jspdf'
+import { NextResponse } from 'next/server'
+import crypto from 'crypto'
+import { getAdminDb } from '@/lib/firebase-admin'
 
 export const dynamic = 'force-dynamic'
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://espeezy.com'
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params
-  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-  if (!UUID_RE.test(id)) return new NextResponse('Not found', { status: 404 })
 
-  const svc = await createAdminClient()
+export async function POST(req: Request) {
+  try {
+    const rawBody = await req.text()
+    const adminDb = getAdminDb()
+    if (!adminDb) return NextResponse.json({ error: 'Service Unavailable' }, { status: 503 })
+    const signature = req.headers.get('x-hub-signature-256')
+    const webhookSecret = process.env.GITHUB_WEBHOOK_SECRET
 
-  // Fetch certificate + profile
-  const { data: cert } = await svc
-    .from('certificates')
-    .select('id, user_id, program_name, issue_date, graduation_year, gpa, achievements, blockchain_hash, revoked')
-    .eq('id', id)
-    .maybeSingle()
+    if (!webhookSecret) {
+      console.warn("GITHUB_WEBHOOK_SECRET is not set. Bypassing validation (NOT FOR PRODUCTION).")
+    } else if (signature) {
+      const hmac = crypto.createHmac('sha256', webhookSecret)
+      const digest = 'sha256=' + hmac.update(rawBody).digest('hex')
+      if (signature !== digest) {
+        return new NextResponse('Unauthorized: Invalid Signature', { status: 401 })
+      }
+    }
 
-  if (!cert || cert.revoked) return new NextResponse('Certificate not found', { status: 404 })
+    const payload = JSON.parse(rawBody)
 
-  const { data: profile } = await svc
-    .from('profiles')
-    .select('display_name')
-    .eq('id', cert.user_id)
-    .maybeSingle()
+    // Only process push events with commits
+    if (!payload.commits || payload.commits.length === 0) {
+      return new NextResponse('No commits to process', { status: 200 })
+    }
 
-  const displayName: string = profile?.display_name ?? 'Scholar'
-  const issueDate = new Date(cert.issue_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+    const uuidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
-  // ─── Build PDF ───────────────────────────────────────────────────────────────
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
-  const W = 297
-  const H = 210
+    for (const commit of payload.commits) {
+      const match = commit.message.match(uuidRegex)
+      
+      if (match) {
+        const taskId = match[0]
+        
+        // 1. Fetch the Task to find who it's assigned to
+        const taskRef = adminDb.collection('tasks').doc(taskId)
+        const taskSnap = await taskRef.get()
 
-  // Background
-  doc.setFillColor(6, 10, 15)
-  doc.rect(0, 0, W, H, 'F')
+        if (taskSnap.exists && taskSnap.data()?.is_coding_task) {
+           const task = taskSnap.data()!
+           const impactScore = 15; // standard base reward
+           
+           // 2. Record the Commit
+           await adminDb.collection('commits').add({
+             hash: commit.id,
+             message: commit.message,
+             author_email: commit.author.email,
+             task_id: taskId,
+             impact_score: impactScore,
+             lines_added: 0,
+             lines_deleted: 0,
+             created_at: new Date().toISOString()
+           })
 
-  // Decorative border
-  doc.setDrawColor(16, 185, 129)
-  doc.setLineWidth(0.8)
-  doc.rect(10, 10, W - 20, H - 20, 'S')
-  doc.setLineWidth(0.3)
-  doc.rect(13, 13, W - 26, H - 26, 'S')
+           // 3. Update Task Status to Done
+           await taskRef.update({ status: 'Done' })
 
-  // Header — brand
-  doc.setTextColor(16, 185, 129)
-  doc.setFontSize(11)
-  doc.setFont('helvetica', 'bold')
-  doc.text('ESPEEZY  ·  ACADEMIC CREDENTIALS', W / 2, 28, { align: 'center' })
+           // 4. Update Profile Score across all assignees
+           if (task.assignees && Array.isArray(task.assignees)) {
+              for (const userId of task.assignees) {
+                 const profileRef = adminDb.collection('profiles').doc(userId)
+                 const profileSnap = await profileRef.get()
+                 if (profileSnap.exists) {
+                    const currentScore = profileSnap.data()?.total_score || 0
+                    await profileRef.update({ total_score: currentScore + impactScore })
+                 }
+              }
+           }
+        }
+      }
+    }
 
-  // Title
-  doc.setTextColor(255, 255, 255)
-  doc.setFontSize(28)
-  doc.setFont('helvetica', 'bold')
-  doc.text('Certificate of Completion', W / 2, 52, { align: 'center' })
-
-  // Subtitle
-  doc.setTextColor(160, 160, 160)
-  doc.setFontSize(11)
-  doc.setFont('helvetica', 'normal')
-  doc.text('This is to certify that', W / 2, 68, { align: 'center' })
-
-  // Recipient name
-  doc.setTextColor(255, 255, 255)
-  doc.setFontSize(26)
-  doc.setFont('helvetica', 'bold')
-  doc.text(displayName, W / 2, 84, { align: 'center' })
-
-  // Program
-  doc.setTextColor(160, 160, 160)
-  doc.setFontSize(11)
-  doc.setFont('helvetica', 'normal')
-  doc.text('has successfully completed', W / 2, 96, { align: 'center' })
-
-  doc.setTextColor(16, 185, 129)
-  doc.setFontSize(16)
-  doc.setFont('helvetica', 'bold')
-  doc.text(cert.program_name, W / 2, 109, { align: 'center' })
-
-  // GPA
-  if (cert.gpa) {
-    doc.setTextColor(200, 200, 200)
-    doc.setFontSize(10)
-    doc.setFont('helvetica', 'normal')
-    doc.text(`GPA: ${cert.gpa.toFixed(2)}`, W / 2, 120, { align: 'center' })
+    return new NextResponse('Webhook processed successfully', { status: 200 })
+    
+  } catch (err: any) {
+    console.error("Webhook Error:", err.message)
+    return new NextResponse(`Server Error: ${err.message}`, { status: 500 })
   }
-
-  // Achievements
-  if (cert.achievements?.length) {
-    doc.setTextColor(180, 180, 180)
-    doc.setFontSize(9)
-    const achText = cert.achievements.join('  ·  ')
-    doc.text(achText, W / 2, 130, { align: 'center', maxWidth: 240 })
-  }
-
-  // Divider
-  doc.setDrawColor(16, 185, 129)
-  doc.setLineWidth(0.3)
-  doc.line(60, 140, W - 60, 140)
-
-  // Date + graduation year
-  doc.setTextColor(160, 160, 160)
-  doc.setFontSize(9)
-  doc.setFont('helvetica', 'normal')
-  doc.text(`Issued: ${issueDate}`, 60, 148)
-  if (cert.graduation_year) {
-    doc.text(`Graduation Year: ${cert.graduation_year}`, W - 60, 148, { align: 'right' })
-  }
-
-  // Certificate ID and verify URL
-  doc.setFontSize(7.5)
-  doc.setTextColor(120, 120, 120)
-  doc.text(`Certificate ID: ${cert.id}`, W / 2, 158, { align: 'center' })
-  doc.text(`Verify at: ${APP_URL}/certificate/${cert.id}`, W / 2, 164, { align: 'center' })
-
-  if (cert.blockchain_hash) {
-    doc.setFontSize(6.5)
-    doc.setTextColor(80, 80, 80)
-    doc.text(`SHA-256: ${cert.blockchain_hash}`, W / 2, 170, { align: 'center' })
-  }
-
-  // Footer
-  doc.setTextColor(40, 120, 80)
-  doc.setFontSize(8)
-  doc.text('Espeezy Academic Credentials  ·  espeezy.com  ·  Tamper-evident certificate', W / 2, H - 18, { align: 'center' })
-
-  // ─── Return as PDF ─────────────────────────────────────────────────────────
-  const pdfBytes = doc.output('arraybuffer')
-  const safeFileName = displayName.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40)
-
-  return new NextResponse(pdfBytes, {
-    status: 200,
-    headers: {
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="espeezy-certificate-${safeFileName}.pdf"`,
-      'Cache-Control': 'private, max-age=3600',
-    },
-  })
 }

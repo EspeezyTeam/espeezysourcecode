@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin'
 import { auth } from '@/lib/firebase' // For client-side auth state if needed, but this is an API route
+export const dynamic = 'force-dynamic'
+
 
 // Mock checkBotId as it's legacy and caused build failures
 const checkBotId = async () => ({ isBot: false })
