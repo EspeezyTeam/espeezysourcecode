@@ -30,13 +30,16 @@ const nextConfig: NextConfig = {
   // ── HTTP response caching ────────────────────────────────────────────────
   // API routes that are safe to cache at the CDN edge
   async headers() {
-    const securityHeaders = [
-      { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
-      { key: 'X-Frame-Options', value: 'DENY' },
-      { key: 'X-Content-Type-Options', value: 'nosniff' },
-      { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-      { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
-    ]
+    const isProduction = process.env.NODE_ENV === 'production'
+    const securityHeaders = isProduction
+      ? [
+          { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+        ]
+      : []
     return [
       {
         source: '/(.*)',
