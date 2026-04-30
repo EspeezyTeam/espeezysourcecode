@@ -88,7 +88,7 @@ class ClientQueryBuilder {
   }
 }
 
-const db = {
+export const db = {
   from: (table: string) => new ClientQueryBuilder(table) as any,
   rpc: async (name: string, args?: any) => {
     console.log(`Firestore Client RPC Shim [${name}]:`, args)
