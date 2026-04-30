@@ -3,6 +3,7 @@ import type { NextConfig } from 'next'
 const nextConfig: NextConfig = {
   compress: true,
   poweredByHeader: false,
+  allowedDevOrigins: ['prereg.espeezy.com'],
 
 
   experimental: {},

@@ -25,6 +25,12 @@ services:
       dockerfile: Dockerfile.dev
     container_name: Espeezy_App
     restart: unless-stopped
+    command: >
+      sh -c "if [ ! -d /app/node_modules/firebase ]; then
+      echo '[boot] firebase module missing in volume; reinstalling dependencies...';
+      npm install --prefer-offline --legacy-peer-deps;
+      fi;
+      npm run dev"
     ports:
       - "3000:3000"
     volumes:

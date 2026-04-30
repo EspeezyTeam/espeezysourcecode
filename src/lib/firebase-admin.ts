@@ -1,43 +1,94 @@
 import admin from 'firebase-admin'
+import { readFileSync } from 'fs'
+
+type ServiceAccountShape = {
+  project_id: string
+  client_email: string
+  private_key: string
+}
+
+function normalizeSecretInput(value: string) {
+  const trimmed = value.trim()
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1).trim()
+  }
+  return trimmed
+}
+
+function tryParseJson(value: string) {
+  try {
+    return JSON.parse(value) as Record<string, unknown>
+  } catch {
+    return null
+  }
+}
+
+function toBase64(value: string) {
+  // Accept base64url secrets from CI systems by normalizing to standard base64.
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/').replace(/\s+/g, '')
+  const padding = normalized.length % 4
+  if (padding === 0) return normalized
+  return normalized + '='.repeat(4 - padding)
+}
 
 function parseServiceAccountKey(rawKey: string) {
-  const input = rawKey.trim()
+  const input = normalizeSecretInput(rawKey)
 
-  const parseJson = (value: string) => {
-    try {
-      return JSON.parse(value) as Record<string, unknown>
-    } catch {
-      return null
-    }
-  }
-
-  // Support plain JSON secrets (common in local/dev and some hosts)
-  const jsonDirect = parseJson(input)
+  // Support plain JSON secrets (common in local/dev and some hosts).
+  const jsonDirect = tryParseJson(input)
   if (jsonDirect) return jsonDirect
 
-  // Support base64-encoded JSON secrets
-  const decoded = Buffer.from(input, 'base64').toString('utf8').trim()
-  const jsonBase64 = parseJson(decoded)
+  // Support base64/base64url encoded JSON secrets.
+  const decoded = Buffer.from(toBase64(input), 'base64').toString('utf8').trim()
+  const jsonBase64 = tryParseJson(decoded)
   if (jsonBase64) return jsonBase64
 
   return null
 }
 
+function readServiceAccountFromPath(path: string) {
+  try {
+    const content = readFileSync(path, 'utf8')
+    return tryParseJson(content)
+  } catch {
+    return null
+  }
+}
+
+function normalizeServiceAccount(value: Record<string, unknown> | null): ServiceAccountShape | null {
+  if (!value) return null
+
+  const projectId = value.project_id
+  const clientEmail = value.client_email
+  const privateKeyRaw = value.private_key
+
+  if (typeof projectId !== 'string' || typeof clientEmail !== 'string' || typeof privateKeyRaw !== 'string') {
+    return null
+  }
+
+  return {
+    project_id: projectId,
+    client_email: clientEmail,
+    private_key: privateKeyRaw.replace(/\\n/g, '\n'),
+  }
+}
+
 function initAdmin() {
   if (admin.apps.length) return true;
-  
-  const key = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-  if (!key) return false;
+
+  const rawKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY
+  const pathFromEnv = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || process.env.GOOGLE_APPLICATION_CREDENTIALS
 
   try {
-    const serviceAccount = parseServiceAccountKey(key)
-    if (!serviceAccount) {
-      throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY is neither valid JSON nor valid base64-encoded JSON')
-    }
+    const fromKey = rawKey ? parseServiceAccountKey(rawKey) : null
+    const fromPath = pathFromEnv ? readServiceAccountFromPath(pathFromEnv) : null
+    const serviceAccount = normalizeServiceAccount(fromKey || fromPath)
 
-    const privateKey = serviceAccount.private_key
-    if (typeof privateKey === 'string') {
-      serviceAccount.private_key = privateKey.replace(/\\n/g, '\n')
+    if (!serviceAccount) {
+      throw new Error('Firebase Admin credentials are invalid. Set FIREBASE_SERVICE_ACCOUNT_KEY (JSON/base64) or FIREBASE_SERVICE_ACCOUNT_PATH/GOOGLE_APPLICATION_CREDENTIALS (file path).')
     }
 
     admin.initializeApp({
