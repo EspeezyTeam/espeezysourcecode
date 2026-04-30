@@ -3,7 +3,7 @@
  * All admin API routes must use these guards — never inline duplicates.
  */
 import { NextResponse } from 'next/server'
-import { createServerSupabaseClient, createAdminClient } from '@/utils/supabase/server'
+import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 
 export type AdminContext = {
   user: { id: string; email?: string }
@@ -15,8 +15,8 @@ export type AdminContext = {
  * Returns AdminContext on success, or a 401/403 NextResponse on failure.
  */
 export async function requireAdmin(): Promise<AdminContext | NextResponse> {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const db = await createServerSupabaseClient()
+  const { data: { user } } = await db.auth.getUser()
     .catch(() => ({ data: { user: null } }))
 
   if (!user) {
@@ -41,8 +41,8 @@ export async function requireAdmin(): Promise<AdminContext | NextResponse> {
  * Verifies the request is from a logged-in admin OR moderator.
  */
 export async function requireModerator(): Promise<AdminContext | NextResponse> {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const db = await createServerSupabaseClient()
+  const { data: { user } } = await db.auth.getUser()
     .catch(() => ({ data: { user: null } }))
 
   if (!user) {

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { AlertCircle, X, Shield, Activity, Globe } from 'lucide-react'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { db, createBrowserSupabaseClient } from '@/lib/db-client'
 
 interface AnnouncementConfig {
   key: string
@@ -29,11 +29,11 @@ export default function GlobalAnnouncement() {
     mountIdRef.current += 1
     const mountId = mountIdRef.current
 
-    const supabase = createBrowserSupabaseClient()
+    const db = createBrowserSupabaseClient()
 
     // 1. Initial Fetch
     const fetchConfig = async () => {
-      const { data } = await supabase
+      const { data } = await db
         .from('platform_config')
         .select('*')
         .eq('key', 'global_announcement')

@@ -31,14 +31,14 @@ export async function GET() {
   // ── Live DB check via nearest read replica (or primary in local dev) ──────
   const t0 = Date.now()
   let dbHealthy = false
-  const supabaseUrl = replicaUrl || primaryUrl
+  const dbUrl = replicaUrl || primaryUrl
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''
-  if (supabaseUrl && anonKey) {
+  if (dbUrl && anonKey) {
     try {
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), 400)
       const res = await fetch(
-        `${supabaseUrl}/rest/v1/profiles?select=id&limit=1`,
+        `${dbUrl}/rest/v1/profiles?select=id&limit=1`,
         {
           headers: {
             apikey: anonKey,

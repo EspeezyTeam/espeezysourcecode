@@ -1,7 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { db, createBrowserSupabaseClient } from '@/lib/db-client'
 import { logActivity } from '@/utils/logging'
 import { Palette, ThemeContextType } from '@/types/ui'
 
@@ -409,7 +409,7 @@ export const ThemeProvider = ({ children, initialTheme, userPlan }: { children: 
   })
   
   const [customBg, setCustomBg] = useState<string | null>(initialTheme?.bgUrl || null)
-  const supabase = createBrowserSupabaseClient()
+  const db = createBrowserSupabaseClient()
 
   useEffect(() => {
     let mounted = true
@@ -448,13 +448,13 @@ export const ThemeProvider = ({ children, initialTheme, userPlan }: { children: 
 
       setCurrentPalette(palette)
       localStorage.setItem('espeezy_palette', name) 
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { user } } = await db.auth.getUser()
         if (user) {
-          await supabase.from('profiles').update({ 
+          await db.from('profiles').update({ 
             theme_config: { palette: name } 
           }).eq('id', user.id)
 
-          const { data: profile } = await supabase.from('profiles').select('group_id').eq('id', user.id).single()
+          const { data: profile } = await db.from('profiles').select('group_id').eq('id', user.id).single()
           logActivity(user.id, profile?.group_id, 'theme_changed', `Changed palette to ${name}`)
         }
     }
@@ -465,9 +465,9 @@ export const ThemeProvider = ({ children, initialTheme, userPlan }: { children: 
     if (url) localStorage.setItem('espeezy_bg', url)
     else localStorage.removeItem('espeezy_bg')
     
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user } } = await db.auth.getUser()
     if (user) {
-      await supabase.from('profiles').update({ 
+      await db.from('profiles').update({ 
         custom_bg_url: url 
       }).eq('id', user.id)
     }

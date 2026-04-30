@@ -1,16 +1,16 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { db, createBrowserSupabaseClient } from '@/lib/db-client'
 import { Users } from 'lucide-react'
 
 export default function UserCount() {
   const [count, setCount] = useState<number | null>(null)
   const [isLive, setIsLive] = useState(false)
-  const supabase = createBrowserSupabaseClient()
+  const db = createBrowserSupabaseClient()
 
   const fetchCount = async () => {
-    const { count: total, error } = await supabase
+    const { count: total, error } = await db
       .from('profiles')
       .select('*', { count: 'exact', head: true })
     
@@ -34,7 +34,7 @@ export default function UserCount() {
     initializeCount()
 
     // Realtime subscription to profiles table
-    const channel = supabase
+    const channel = db
       .channel('public:profiles_count')
       .on(
         'postgres_changes',
@@ -58,7 +58,7 @@ export default function UserCount() {
 
     return () => {
       mounted = false
-      supabase.removeChannel(channel)
+      db.removeChannel(channel)
     }
   }, [])
 

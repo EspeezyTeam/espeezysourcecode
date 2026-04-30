@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { db, createBrowserSupabaseClient } from '@/lib/db-client'
 import {
   MessageSquare,
   CheckCircle,
@@ -70,7 +70,7 @@ export default function ActivityLogView({
   const [activities, setActivities] = useState<LogEntry[]>([])
   const [logSearch, setLogSearch] = useState('')
   const [loading, setLoading] = useState(true)
-  const supabase = useMemo(() => createBrowserSupabaseClient(), [])
+  const db = useMemo(() => createBrowserSupabaseClient(), [])
 
   const filteredLogs = useMemo(() => {
     if (!logSearch.trim()) return activities
@@ -86,7 +86,7 @@ export default function ActivityLogView({
 
   const fetchLogs = useCallback(async () => {
     setLoading(true)
-    let query = supabase
+    let query = db
       .from('activity_log')
       .select('*, profiles(full_name, avatar_url)')
       .order('created_at', { ascending: false })
@@ -98,7 +98,7 @@ export default function ActivityLogView({
     const { data } = await query
     if (data) setActivities(data as LogEntry[])
     setLoading(false)
-  }, [userId, groupId, limit, supabase])
+  }, [userId, groupId, limit, db])
 
   useEffect(() => {
     void (async () => {
@@ -106,7 +106,7 @@ export default function ActivityLogView({
     })()
 
     // Real-time synchronization for the audit log
-    const channel = supabase.channel(`activity_log_${groupId || 'personal'}`)
+    const channel = db.channel(`activity_log_${groupId || 'personal'}`)
       .on(
         'postgres_changes',
         { 
@@ -123,9 +123,9 @@ export default function ActivityLogView({
       .subscribe()
 
     return () => {
-      supabase.removeChannel(channel)
+      db.removeChannel(channel)
     }
-  }, [fetchLogs, groupId, userId, supabase])
+  }, [fetchLogs, groupId, userId, db])
 
   if (loading) {
     return (

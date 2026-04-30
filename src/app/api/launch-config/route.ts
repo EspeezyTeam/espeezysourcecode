@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server'
-import { createAdminClient } from '@/utils/supabase/server'
+import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    const supabase = await createAdminClient()
+    const db = await createAdminClient()
     const keys = ['launch_date', 'launch_message', 'preregister_goal', 'preregister_open', 'brand_name', 'platform_version']
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from('app_config')
       .select('key, value, description, updated_at')
       .in('key', keys)

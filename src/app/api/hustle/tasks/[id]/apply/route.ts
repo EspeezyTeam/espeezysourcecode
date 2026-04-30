@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
-import { createServerSupabaseClient, createAdminClient } from '@/utils/supabase/server'
+import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 
 function getStripeClient(): Stripe {
   const stripeKey = process.env.STRIPE_SECRET_KEY
@@ -20,8 +20,8 @@ export async function POST(_req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const db = await createServerSupabaseClient()
+  const { data: { user } } = await db.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const svc = await createAdminClient()
@@ -79,8 +79,8 @@ export async function GET(_req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const db = await createServerSupabaseClient()
+  const { data: { user } } = await db.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const svc = await createAdminClient()

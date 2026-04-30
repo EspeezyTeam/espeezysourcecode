@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createAdminClient, createServerSupabaseClient } from '@/utils/supabase/server'
+import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,8 +9,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 })
     }
 
-    const supabase = await createServerSupabaseClient()
-    const { data: { user } } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }))
+    const db = await createServerSupabaseClient()
+    const { data: { user } } = await db.auth.getUser().catch(() => ({ data: { user: null } }))
 
     const adminClient = await createAdminClient()
     

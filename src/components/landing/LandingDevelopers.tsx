@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Braces, Database, KeyRound, Globe, ExternalLink } from 'lucide-react'
 import { DATA_API_DATASETS } from '@/config/dataApiCatalog'
 
-const DEFAULT_DATA_API_BASE = 'https://othntbcrtmemavfsslrb.supabase.co/rest/v1'
+const DEFAULT_DATA_API_BASE = 'https://othntbcrtmemavfsslrb.db.co/rest/v1'
 
 
 export default function LandingDevelopers() {

@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabaseClient, createAdminClient } from '@/utils/supabase/server'
+import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 
 async function requireAdmin() {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user }, error } = await supabase.auth.getUser()
+  const db = await createServerSupabaseClient()
+  const { data: { user }, error } = await db.auth.getUser()
   if (error || !user) return null
   const svc = await createAdminClient()
   const { data: profile } = await svc.from('profiles').select('role').eq('id', user.id).single()

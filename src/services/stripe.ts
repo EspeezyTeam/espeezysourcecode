@@ -1,4 +1,4 @@
-import { createAdminClient } from '@/utils/supabase/server'
+import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 import { getAppUrl, getStripeClient } from '../utils/stripe'
 
 const APP_URL = getAppUrl()

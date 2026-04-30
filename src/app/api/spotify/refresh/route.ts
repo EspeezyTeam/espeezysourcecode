@@ -1,4 +1,4 @@
-import { createAdminClient } from '@/utils/supabase/server'
+import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 import { NextResponse } from 'next/server'
 
 export async function POST(request: Request) {
@@ -6,8 +6,8 @@ export async function POST(request: Request) {
     const { userId } = await request.json()
     if (!userId) return NextResponse.json({ error: 'User ID missing' }, { status: 400 })
 
-    const supabase = await createAdminClient()
-    const { data: profile, error: fetchError } = await supabase
+    const db = await createAdminClient()
+    const { data: profile, error: fetchError } = await db
       .from('profiles')
       .select('spotify_refresh_token')
       .eq('id', userId)
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
       updates.spotify_refresh_token = data.refresh_token
     }
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await db
       .from('profiles')
       .update(updates)
       .eq('id', userId)

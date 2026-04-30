@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createAdminClient, createServerSupabaseClient } from '@/utils/supabase/server'
+import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,8 +40,8 @@ export async function POST(req: NextRequest, { params }: Props) {
     return NextResponse.json({ error: 'Session expired' }, { status: 410 })
   }
 
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }))
+  const db = await createServerSupabaseClient()
+  const { data: { user } } = await db.auth.getUser().catch(() => ({ data: { user: null } }))
 
   if (session.play_mode === 'member') {
     if (!user || user.id !== session.user_id) {

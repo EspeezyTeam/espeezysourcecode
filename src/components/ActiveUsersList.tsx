@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { db, createBrowserSupabaseClient } from '@/lib/db-client'
 import { usePresence } from './PresenceProvider'
 import { User, Shield } from 'lucide-react'
 import { ActiveUser } from '@/types/auth'
@@ -16,12 +16,12 @@ export default function ActiveUsersList({
 }) {
   const [members, setMembers] = useState<ActiveUser[]>([])
   const [loading, setLoading] = useState(true)
-  const supabase = useMemo(() => createBrowserSupabaseClient(), [])
+  const db = useMemo(() => createBrowserSupabaseClient(), [])
   const { onlineUsers, typingUsers } = usePresence()
 
   const fetchMembers = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase
+    const { data } = await db
       .from('profiles')
       .select('id, full_name, avatar_url, role, last_seen, country_code')
       .eq('group_id', groupId)
@@ -29,14 +29,14 @@ export default function ActiveUsersList({
 
     setMembers((data ?? []) as ActiveUser[])
     setLoading(false)
-  }, [groupId, supabase])
+  }, [groupId, db])
 
   useEffect(() => {
     void (async () => {
       await fetchMembers()
     })()
 
-    const channel = supabase.channel(`presence_list_${groupId}`)
+    const channel = db.channel(`presence_list_${groupId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'profiles', filter: `group_id=eq.${groupId}` },
@@ -47,9 +47,9 @@ export default function ActiveUsersList({
       .subscribe()
 
     return () => {
-      supabase.removeChannel(channel)
+      db.removeChannel(channel)
     }
-  }, [fetchMembers, groupId, supabase])
+  }, [fetchMembers, groupId, db])
 
   const formatLastSeen = useCallback((timestamp: string | null) => {
     if (!timestamp) return 'Never'

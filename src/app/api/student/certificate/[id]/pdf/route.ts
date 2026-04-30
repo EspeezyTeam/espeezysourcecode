@@ -6,7 +6,7 @@
  * The PDF is generated on-the-fly (no stored file needed).
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { createAdminClient } from '@/utils/supabase/server'
+import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 import jsPDF from 'jspdf'
 
 export const dynamic = 'force-dynamic'

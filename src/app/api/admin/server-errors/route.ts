@@ -1,15 +1,15 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabaseClient, createAdminClient } from '@/utils/supabase/server'
+import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
 async function requireAdmin() {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const db = await createServerSupabaseClient()
+  const { data: { user } } = await db.auth.getUser()
     .catch(() => ({ data: { user: null } }))
   if (!user) return { user: null, error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
 
-  const { data: profile, error: profileErr } = await supabase
+  const { data: profile, error: profileErr } = await db
     .from('profiles')
     .select('role')
     .eq('id', user.id)

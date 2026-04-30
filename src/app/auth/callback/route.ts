@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from '@/utils/supabase/server'
+import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
@@ -16,11 +16,11 @@ export async function GET(request: Request) {
   }
 
   if (code) {
-    const supabase = await createServerSupabaseClient()
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    const db = await createServerSupabaseClient()
+    const { error } = await db.auth.exchangeCodeForSession(code)
     if (!error) {
       // Check if this is a password recovery flow
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { user } } = await db.auth.getUser()
       const isRecovery = searchParams.get('type') === 'recovery' || !user?.last_sign_in_at
 
       // Validate redirect path — must be a relative path on same origin (open redirect prevention)

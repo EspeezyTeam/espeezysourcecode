@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient, createAdminClient } from '@/utils/supabase/server'
+import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,8 +22,8 @@ When a user needs human support, say: "For this issue, please contact our team a
 Keep responses concise and friendly. Use markdown formatting where helpful.`
 
 export async function POST(req: NextRequest) {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }))
+  const db = await createServerSupabaseClient()
+  const { data: { user } } = await db.auth.getUser().catch(() => ({ data: { user: null } }))
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { messages, ticket_id } = await req.json()

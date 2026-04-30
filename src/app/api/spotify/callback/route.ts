@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/utils/supabase/server'
+import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -46,14 +46,14 @@ export async function GET(request: Request) {
   }
 
   // Save tokens to Supabase
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const db = await createServerSupabaseClient()
+  const { data: { user } } = await db.auth.getUser()
 
   if (!user) {
     return NextResponse.redirect('/login?error=unauthorized')
   }
 
-  const { error: updateError } = await supabase
+  const { error: updateError } = await db
     .from('profiles')
     .update({
       spotify_access_token: tokens.access_token,

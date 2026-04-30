@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/utils/supabase/server'
+import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 
 const OPENAI_API_URL = process.env.OPENAI_API_BASE || 'https://api.openai.com/v1'
 const OPENAI_API_KEY = process.env.AI_GATEWAY_API_KEY || process.env.OPENAI_API_KEY
@@ -9,8 +9,8 @@ export async function POST(req: Request) {
     return new NextResponse(JSON.stringify({ error: 'AI Gateway is not configured.' }), { status: 500 })
   }
 
-  const supabase = await createServerSupabaseClient()
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  const db = await createServerSupabaseClient()
+  const { data: { user }, error: authError } = await db.auth.getUser()
 
   if (authError || !user) {
     return new NextResponse(JSON.stringify({ error: 'Authentication required.' }), { status: 401 })
@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     
     // Usage Check
     const windowStart = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-    const { count: usageCount } = await supabase
+    const { count: usageCount } = await db
       .from('ai_usage')
       .select('id', { count: 'exact' })
       .eq('profile_id', user.id)
@@ -76,7 +76,7 @@ Schema:
     let questions = JSON.parse(content)
     if (questions.questions) questions = questions.questions // handle common wrapper
 
-    await supabase.from('ai_usage').insert([{ profile_id: user.id, action: 'skirmish_generation' }])
+    await db.from('ai_usage').insert([{ profile_id: user.id, action: 'skirmish_generation' }])
 
     return new NextResponse(JSON.stringify({ questions }), { status: 200 })
   } catch (err: unknown) {

@@ -12,7 +12,7 @@
  * Returns all certificates for the authenticated user.
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient, createAdminClient } from '@/utils/supabase/server'
+import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 import { sendCertificateEmail } from '@/services/email'
 import { createHash } from 'crypto'
 
@@ -21,8 +21,8 @@ export const dynamic = 'force-dynamic'
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://espeezy.com'
 
 export async function POST(req: NextRequest) {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const db = await createServerSupabaseClient()
+  const { data: { user } } = await db.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
@@ -106,8 +106,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const db = await createServerSupabaseClient()
+  const { data: { user } } = await db.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const svc = await createAdminClient()

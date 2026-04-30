@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { db, createBrowserSupabaseClient } from '@/lib/db-client'
 import { useProfile } from '@/context/ProfileContext'
 import { 
   ShieldAlert, 
@@ -24,7 +24,7 @@ export default function IndustrialGateway() {
   const systemStatus = { auth: 'ok', db: 'ok', api: 'ok' }
   
   const router = useRouter()
-  const supabase = createBrowserSupabaseClient()
+  const db = createBrowserSupabaseClient()
   const { addToast } = useNotifications()
 
   // 1. Initial Authorization Guard (Role Check)

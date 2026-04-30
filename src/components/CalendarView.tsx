@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { db, createBrowserSupabaseClient } from '@/lib/db-client'
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
 import { Task, TaskStatus } from '@/types/database'
 import TaskModal from './TaskModal'
@@ -15,11 +15,11 @@ export default function CalendarView({ groupId, onTaskSaved }: { groupId: string
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [preselectedDate, setPreselectedDate] = useState<string | undefined>(undefined)
   const [loading, setLoading] = useState(true)
-  const supabase = useMemo(() => createBrowserSupabaseClient(), [])
+  const db = useMemo(() => createBrowserSupabaseClient(), [])
 
   const fetchTasks = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase
+    const { data } = await db
       .from('tasks')
       .select('id, title, due_date, status, is_coding_task')
       .eq('group_id', groupId)
@@ -27,14 +27,14 @@ export default function CalendarView({ groupId, onTaskSaved }: { groupId: string
 
     setTasks((data ?? []) as CalendarTask[])
     setLoading(false)
-  }, [groupId, supabase])
+  }, [groupId, db])
 
   useEffect(() => {
     void (async () => {
       await fetchTasks()
     })()
 
-    const channel = supabase.channel(`calendar_${groupId}`)
+    const channel = db.channel(`calendar_${groupId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'tasks', filter: `group_id=eq.${groupId}` },
@@ -45,9 +45,9 @@ export default function CalendarView({ groupId, onTaskSaved }: { groupId: string
       .subscribe()
 
     return () => {
-      supabase.removeChannel(channel)
+      db.removeChannel(channel)
     }
-  }, [fetchTasks, groupId, supabase])
+  }, [fetchTasks, groupId, db])
 
   const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate()
   const firstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay()
@@ -167,7 +167,7 @@ export default function CalendarView({ groupId, onTaskSaved }: { groupId: string
                         key={task.id}
                         onClick={async (e) => {
                            e.stopPropagation()
-                           const { data } = await supabase.from('tasks').select('*').eq('id', task.id).single()
+                           const { data } = await db.from('tasks').select('*').eq('id', task.id).single()
                            setSelectedTask(data as Task | null)
                            setPreselectedDate(undefined)
                            setIsModalOpen(true)

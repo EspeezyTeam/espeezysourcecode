@@ -3,7 +3,7 @@ import { DATA_API_DATASETS } from '@/config/dataApiCatalog'
 
 export const dynamic = 'force-dynamic'
 
-const FALLBACK_DATA_API = 'https://othntbcrtmemavfsslrb.supabase.co/rest/v1'
+const FALLBACK_DATA_API = 'https://othntbcrtmemavfsslrb.db.co/rest/v1'
 
 export async function GET() {
   const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL

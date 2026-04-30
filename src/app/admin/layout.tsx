@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from '@/utils/supabase/server'
+import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 import { redirect } from 'next/navigation'
 import { ProfileProvider } from '@/context/ProfileContext'
 import { ThemeProvider } from '@/context/ThemeContext'
@@ -14,15 +14,15 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode
 }) {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const db = await createServerSupabaseClient()
+  const { data: { user } } = await db.auth.getUser()
     .catch(() => ({ data: { user: null } }))
 
   if (!user) {
     redirect('/login?redirect=/admin')
   }
 
-  const { data: profile } = await supabase
+  const { data: profile } = await db
     .from('profiles')
     .select('*')
     .eq('id', user.id)

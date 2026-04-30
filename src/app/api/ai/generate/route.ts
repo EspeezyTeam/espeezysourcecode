@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/utils/supabase/server'
+import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 
 const OPENAI_API_URL = process.env.OPENAI_API_BASE || 'https://api.openai.com/v1'
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || process.env.AI_API_KEY || process.env.AI_GATEWAY_KEY
@@ -9,8 +9,8 @@ export async function POST(req: Request) {
     return new NextResponse(JSON.stringify({ error: 'AI API key is not configured.' }), { status: 500 })
   }
 
-  const supabase = await createServerSupabaseClient()
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  const db = await createServerSupabaseClient()
+  const { data: { user }, error: authError } = await db.auth.getUser()
 
   if (authError || !user) {
     return new NextResponse(JSON.stringify({ error: 'Authentication required.' }), { status: 401 })
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     }
 
     const windowStart = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-    const { count, error: countError } = await supabase
+    const { count, error: countError } = await db
       .from('ai_usage')
       .select('id', { count: 'exact' })
       .eq('profile_id', user.id)
@@ -68,7 +68,7 @@ export async function POST(req: Request) {
       return new NextResponse(JSON.stringify({ error: 'AI did not return a valid description.' }), { status: 502 })
     }
 
-    await supabase.from('ai_usage').insert([{ profile_id: user.id, action: 'task_description' }])
+    await db.from('ai_usage').insert([{ profile_id: user.id, action: 'task_description' }])
 
     return new NextResponse(JSON.stringify({ description: text }), { status: 200 })
   } catch (err: unknown) {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { db, createBrowserSupabaseClient } from '@/lib/db-client'
 import Image from 'next/image'
 import { 
   Search, 
@@ -31,26 +31,26 @@ export default function NetworkPage() {
   
   const router = useRouter()
   const { withLoading } = useSmartLoading()
-  const supabase = useMemo(() => createBrowserSupabaseClient(), [])
+  const db = useMemo(() => createBrowserSupabaseClient(), [])
   const { onlineUsers } = usePresence()
 
   const fetchMetrics = useCallback(async () => {
     // 1. Fetch Global User Count
-    const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true })
+    const { count } = await db.from('profiles').select('*', { count: 'exact', head: true })
     setGlobalCount(count || 0)
 
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user } } = await db.auth.getUser()
     if (!user) return
 
     // 2. Fetch Team Members
-    const { data: me } = await supabase.from('profiles').select('group_id').eq('id', user.id).single()
+    const { data: me } = await db.from('profiles').select('group_id').eq('id', user.id).single()
     if (me?.group_id) {
-      const { data: team } = await supabase.from('profiles').select('*').eq('group_id', me.group_id).neq('id', user.id)
+      const { data: team } = await db.from('profiles').select('*').eq('group_id', me.group_id).neq('id', user.id)
       setTeamMembers(team || [])
     }
 
     // 3. Fetch Personal Network (Connections)
-    const { data: conn } = await supabase
+    const { data: conn } = await db
       .from('user_connections')
       .select('user_id, target_id')
       .or(`user_id.eq.${user.id},target_id.eq.${user.id}`)
@@ -60,7 +60,7 @@ export default function NetworkPage() {
     if (conn) {
       connectionIds = conn.map((c: { user_id: string; target_id: string }) => c.user_id === user.id ? c.target_id : c.user_id)
       if (connectionIds.length > 0) {
-        const { data: net } = await supabase.from('profiles').select('*').in('id', connectionIds)
+        const { data: net } = await db.from('profiles').select('*').in('id', connectionIds)
         setPersonalNetwork(net || [])
       }
     }
@@ -69,7 +69,7 @@ export default function NetworkPage() {
     // EXCLUDE: Self, Team Members, and already connected Peers
     const excludeIds = [user.id, ...(teamMembers.map(m => m.id)), ...connectionIds]
     
-    const { data: sugg } = await supabase
+    const { data: sugg } = await db
       .from('profiles')
       .select('*')
       .not('id', 'in', `(${excludeIds.join(',')})`)
@@ -78,7 +78,7 @@ export default function NetworkPage() {
     setSuggestedUsers(sugg || [])
     
     setLoading(false)
-  }, [supabase, teamMembers])
+  }, [db, teamMembers])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { Search, User, CheckSquare, Users, X, ArrowRight, Loader2 } from 'lucide-react'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { db, createBrowserSupabaseClient } from '@/lib/db-client'
 import { useRouter } from 'next/navigation'
 import { useSmartLoading } from '@/components/GlobalLoadingProvider'
 import { getFlagComponent } from '@/utils/geo'
@@ -47,7 +47,7 @@ export default function GlobalSearch({ collapsed }: GlobalSearchProps) {
   const [loading, setLoading] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const supabase = createBrowserSupabaseClient()
+  const db = createBrowserSupabaseClient()
   const router = useRouter()
   const { withLoading } = useSmartLoading()
 
@@ -86,16 +86,16 @@ export default function GlobalSearch({ collapsed }: GlobalSearchProps) {
       setLoading(true)
       try {
         // Try calling the smart_search RPC function
-        const { data, error } = await supabase.rpc('smart_search', { search_term: query })
+        const { data, error } = await db.rpc('smart_search', { search_term: query })
 
         if (!error && data) {
           setResults(data)
         } else {
           // Fallback to manual queries if RPC fails (e.g. migration not applied)
           const [profiles, tasks, groups] = await Promise.all([
-            supabase.from('profiles').select('id, full_name, avatar_url, course_name, country_code').ilike('full_name', `%${query}%`).limit(3),
-            supabase.from('tasks').select('id, title, status').ilike('title', `%${query}%`).limit(3),
-            supabase.from('groups').select('id, name, module_code').ilike('name', `%${query}%`).limit(3)
+            db.from('profiles').select('id, full_name, avatar_url, course_name, country_code').ilike('full_name', `%${query}%`).limit(3),
+            db.from('tasks').select('id, title, status').ilike('title', `%${query}%`).limit(3),
+            db.from('groups').select('id, name, module_code').ilike('name', `%${query}%`).limit(3)
           ])
 
           const profileRows = (profiles.data || []) as ProfileSearchRow[]
@@ -125,7 +125,7 @@ export default function GlobalSearch({ collapsed }: GlobalSearchProps) {
 
     const timer = setTimeout(performSearch, 300)
     return () => clearTimeout(timer)
-  }, [query, supabase])
+  }, [query, db])
 
   const handleSelect = (result: SearchResult) => {
     setIsOpen(false)

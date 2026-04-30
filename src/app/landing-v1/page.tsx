@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { db, createBrowserSupabaseClient } from '@/lib/db-client'
 import {
   Users, Activity, LayoutGrid, Code
 } from 'lucide-react'
@@ -34,8 +34,8 @@ export default function Home() {
   // Landing page renders immediately ΓÇö no blocking spinner
   useEffect(() => {
     const checkUser = async () => {
-      const supabase = createBrowserSupabaseClient()
-      const { data: { session } } = await supabase.auth.getSession()
+      const db = createBrowserSupabaseClient()
+      const { data: { session } } = await db.auth.getSession()
       if (session) {
         router.replace('/dashboard')
       }

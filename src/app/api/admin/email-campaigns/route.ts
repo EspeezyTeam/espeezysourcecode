@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabaseClient, createAdminClient } from '@/utils/supabase/server'
+import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 import { sendEmail } from '@/services/email'
 import { z } from 'zod'
 
@@ -11,12 +11,12 @@ const MAX_ERROR_SAMPLE_SIZE = 10
 
 // ── Auth helper ──────────────────────────────────────────────────────────────
 async function requireAdmin() {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const db = await createServerSupabaseClient()
+  const { data: { user } } = await db.auth.getUser()
     .catch(() => ({ data: { user: null } }))
   if (!user) return { user: null, error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
 
-  const { data: profile, error: profileErr } = await supabase
+  const { data: profile, error: profileErr } = await db
     .from('profiles')
     .select('role')
     .eq('id', user.id)

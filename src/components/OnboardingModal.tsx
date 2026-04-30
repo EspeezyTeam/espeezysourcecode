@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Image from 'next/image'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { db, createBrowserSupabaseClient } from '@/lib/db-client'
 import { 
   CheckCircle2, 
   ArrowRight, 
@@ -30,7 +30,7 @@ export default function OnboardingModal({ user, onComplete }: OnboardingModalPro
   const [fullName, setFullName] = useState('')
   const [selectedAvatar, setSelectedAvatar] = useState('')
   const [saving, setSaving] = useState(false)
-  const supabase = createBrowserSupabaseClient()
+  const db = createBrowserSupabaseClient()
 
   const handleNext = async () => {
     if (step === 1 && !fullName) return
@@ -54,7 +54,7 @@ export default function OnboardingModal({ user, onComplete }: OnboardingModalPro
 
   const saveIdentity = async () => {
     setSaving(true)
-    const { error } = await supabase
+    const { error } = await db
       .from('profiles')
       .update({ 
         full_name: fullName, 

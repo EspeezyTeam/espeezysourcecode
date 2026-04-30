@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/utils/supabase/server';
-import { createServerSupabaseClient } from '@/utils/supabase/server';
+import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db';
+import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -107,13 +107,13 @@ function decomposeCommand(command: string): TaskSpec[] {
 
 export async function POST(req: NextRequest) {
   // Require admin auth
-  const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const db = await createServerSupabaseClient();
+  const { data: { user } } = await db.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { data: profile } = await supabase
+  const { data: profile } = await db
     .from('profiles')
     .select('role')
     .eq('id', user.id)

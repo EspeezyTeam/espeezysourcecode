@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createAdminClient, createServerSupabaseClient } from '@/utils/supabase/server'
+import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,8 +19,8 @@ export async function GET(req: NextRequest, { params }: Props) {
   if (!session) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   if (session.play_mode === 'member') {
-    const supabase = await createServerSupabaseClient()
-    const { data: { user } } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }))
+    const db = await createServerSupabaseClient()
+    const { data: { user } } = await db.auth.getUser().catch(() => ({ data: { user: null } }))
     if (!user || user.id !== session.user_id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }

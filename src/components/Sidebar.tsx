@@ -33,7 +33,7 @@ import { useConnectivity } from '@/context/ConnectivityContext'
 import { useProfile } from '@/context/ProfileContext'
 import { useTheme } from '@/context/ThemeContext'
 import { SidebarProps } from '@/types/ui'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { db, createBrowserSupabaseClient } from '@/lib/db-client'
 import GlobalSearch from './GlobalSearch'
 import NotificationBell from './NotificationBell'
 import { hasFeature } from '@/utils/feature-gate'
@@ -177,7 +177,7 @@ function SidebarNavButton({
 export default function Sidebar({ user }: SidebarProps) {
   const router = useRouter()
   const pathname = usePathname()
-  const supabase = useMemo(() => createBrowserSupabaseClient(), [])
+  const db = useMemo(() => createBrowserSupabaseClient(), [])
   const [isMobile, setIsMobile] = useState(false)
   const [isOpen, setIsOpen] = useState(true)
   const isClient = useSyncExternalStore(subscribeToClient, () => true, () => false)
@@ -269,13 +269,13 @@ export default function Sidebar({ user }: SidebarProps) {
       onConfirm: async () => {
         await withLoading(async () => {
           if (user?.id) {
-            await supabase
+            await db
               .from('profiles')
               .update({ last_seen: new Date().toISOString() })
               .eq('id', user.id)
           }
 
-          await supabase.auth.signOut()
+          await db.auth.signOut()
           window.location.href = '/login'
         }, 'Signing you out...')
       },

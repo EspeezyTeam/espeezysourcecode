@@ -6,7 +6,7 @@ import TransientError from '@/components/TransientError'
 import { PrivacyPolicy, TermsOfService, CookiePolicy } from '@/components/Legal/Policies'
 import { BookOpen, User, Lock, ExternalLink } from 'lucide-react'
 import { useFormStatus } from 'react-dom'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { db, createBrowserSupabaseClient } from '@/lib/db-client'
 import { Phone, Hash as HashIcon } from 'lucide-react'
 
 function SubmitButton({ isSignUp, legalAccepted }: { isSignUp: boolean, legalAccepted: boolean }) {
@@ -55,8 +55,8 @@ function LoginContent() {
   // Client-side guard: Bounce authenticated users back to dashboard
   useEffect(() => {
     const checkUser = async () => {
-      const supabase = createBrowserSupabaseClient()
-      const { data: { session } } = await supabase.auth.getSession()
+      const db = createBrowserSupabaseClient()
+      const { data: { session } } = await db.auth.getSession()
       if (session) {
         router.replace('/dashboard')
       } else {
@@ -95,13 +95,13 @@ function LoginContent() {
   const handleGithubLogin = async (e: React.MouseEvent) => {
     e.preventDefault();
     setAuthError(null);
-    const supabase = createBrowserSupabaseClient();
+    const db = createBrowserSupabaseClient();
     
     // Explicitly construct absolute redirect URL
     const origin = typeof window !== 'undefined' ? window.location.origin : process.env.NEXT_PUBLIC_SITE_URL;
     const redirectTo = `${origin}/auth/callback?next=/dashboard`;
 
-    const { error } = await supabase.auth.signInWithOAuth({
+    const { error } = await db.auth.signInWithOAuth({
       provider: 'github',
       options: {
         redirectTo,
@@ -118,12 +118,12 @@ function LoginContent() {
   const handleGoogleLogin = async (e: React.MouseEvent) => {
     e.preventDefault();
     setAuthError(null);
-    const supabase = createBrowserSupabaseClient();
+    const db = createBrowserSupabaseClient();
     
     const origin = typeof window !== 'undefined' ? window.location.origin : process.env.NEXT_PUBLIC_SITE_URL;
     const redirectTo = `${origin}/auth/callback?next=/dashboard`;
 
-    const { error } = await supabase.auth.signInWithOAuth({
+    const { error } = await db.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo,
@@ -152,8 +152,8 @@ function LoginContent() {
     }
     setSendingOtp(true)
     setAuthError(null)
-    const supabase = createBrowserSupabaseClient()
-    const { error } = await supabase.auth.signInWithOtp({ phone })
+    const db = createBrowserSupabaseClient()
+    const { error } = await db.auth.signInWithOtp({ phone })
     if (error) setAuthError(error.message)
     else setOtpSent(true)
     setSendingOtp(false)
@@ -163,8 +163,8 @@ function LoginContent() {
     e.preventDefault()
     setSendingOtp(true)
     setAuthError(null)
-    const supabase = createBrowserSupabaseClient()
-    const { error } = await supabase.auth.verifyOtp({ phone, token: otp, type: 'sms' })
+    const db = createBrowserSupabaseClient()
+    const { error } = await db.auth.verifyOtp({ phone, token: otp, type: 'sms' })
     if (error) setAuthError(error.message)
     else router.replace('/dashboard')
     setSendingOtp(false)

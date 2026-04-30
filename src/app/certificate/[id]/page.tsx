@@ -5,7 +5,7 @@
  * Anyone with the certificate ID can verify authenticity and download the PDF.
  */
 import { notFound } from 'next/navigation'
-import { createAdminClient } from '@/utils/supabase/server'
+import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 import CertificateViewer from './CertificateViewer'
 
 interface Props {

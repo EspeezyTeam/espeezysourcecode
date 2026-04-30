@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createServerSupabaseClient, createAdminClient } from '@/utils/supabase/server'
+import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,8 +14,8 @@ type Props = { params: Promise<{ id: string }> }
 
 // POST /api/quiz/sessions/[id]/answer — submit an answer, get next question or final result
 export async function POST(req: NextRequest, { params }: Props) {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const db = await createServerSupabaseClient()
+  const { data: { user } } = await db.auth.getUser()
     .catch(() => ({ data: { user: null } }))
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

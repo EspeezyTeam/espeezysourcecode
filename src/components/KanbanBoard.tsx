@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { db, createBrowserSupabaseClient } from '@/lib/db-client'
 import { FileUp, GitCommit, AlertCircle, Search, X, RefreshCw, CloudOff } from 'lucide-react'
 import { useConnectivity } from '@/context/ConnectivityContext'
 import { Task, TaskStatus } from '@/types/database'
@@ -73,7 +73,7 @@ export default function KanbanBoard({ groupId, profile, newTaskSignal }: KanbanB
 
 function KanbanBoardContent({ groupId, profile, newTaskSignal }: KanbanBoardProps) {
   const router = useRouter();
-  const supabase = createBrowserSupabaseClient();
+  const db = createBrowserSupabaseClient();
   const { isOnline, isSlow } = useConnectivity()
   const others = useOthers();
   const updateMyPresence = useUpdateMyPresence();
@@ -154,7 +154,7 @@ function KanbanBoardContent({ groupId, profile, newTaskSignal }: KanbanBoardProp
 
   const fetchTasksFromDB = useCallback(async () => {
     if (storageTasks == null) return;
-    const { data } = await supabase
+    const { data } = await db
       .from('tasks')
       .select('*')
       .eq('group_id', groupId)
@@ -163,10 +163,10 @@ function KanbanBoardContent({ groupId, profile, newTaskSignal }: KanbanBoardProp
     if (data) {
       reconcileTasks(data as Task[]);
     }
-  }, [supabase, groupId, reconcileTasks, storageTasks])
+  }, [db, groupId, reconcileTasks, storageTasks])
 
   const fetchGroupMembers = useCallback(async () => {
-    const { data } = await supabase
+    const { data } = await db
       .from('profiles')
       .select('*')
       .eq('group_id', groupId)
@@ -174,20 +174,20 @@ function KanbanBoardContent({ groupId, profile, newTaskSignal }: KanbanBoardProp
     if (data) {
       setGroupMembers(data as Profile[])
     }
-  }, [supabase, groupId])
+  }, [db, groupId])
 
   const fetchCurrentUser = useCallback(async () => {
     if (profile) return
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user } } = await db.auth.getUser()
     if (user) {
-      const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+      const { data } = await db.from('profiles').select('*').eq('id', user.id).single()
       if (data) setCurrentUserProfile(data)
     }
-  }, [supabase, profile])
+  }, [db, profile])
 
   useEffect(() => {
     let active = true
-    let channel: ReturnType<typeof supabase.channel> | null = null
+    let channel: ReturnType<typeof db.channel> | null = null
 
     const initialize = async () => {
       // Parallelize fetches to eliminate waterfalls
@@ -199,7 +199,7 @@ function KanbanBoardContent({ groupId, profile, newTaskSignal }: KanbanBoardProp
       
       if (!active) return
 
-      channel = supabase.channel(`kanban_${groupId}`)
+      channel = db.channel(`kanban_${groupId}`)
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'tasks', filter: `group_id=eq.${groupId}` },
@@ -221,9 +221,9 @@ function KanbanBoardContent({ groupId, profile, newTaskSignal }: KanbanBoardProp
 
     return () => {
       active = false
-      if (channel) supabase.removeChannel(channel)
+      if (channel) db.removeChannel(channel)
     }
-  }, [fetchTasksFromDB, fetchGroupMembers, fetchCurrentUser, groupId, supabase])
+  }, [fetchTasksFromDB, fetchGroupMembers, fetchCurrentUser, groupId, db])
 
   useEffect(() => {
     if (typeof newTaskSignal === 'number' && newTaskSignal > 0) {
@@ -299,7 +299,7 @@ function KanbanBoardContent({ groupId, profile, newTaskSignal }: KanbanBoardProp
     moveTask(taskId, newStatus)
     handleDragEnd()
 
-    const { error } = await supabase
+    const { error } = await db
       .from('tasks')
       .update({ status: newStatus })
       .eq('id', taskId)

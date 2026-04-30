@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
-import { createServerSupabaseClient, createAdminClient } from '@/utils/supabase/server'
+import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 const STRIPE_API_VERSION: Stripe.LatestApiVersion = '2025-08-27.basil'
@@ -15,8 +15,8 @@ function getStripeClient(): Stripe {
 
 // POST /api/admin/payout — admin sends money to a user
 export async function POST(req: NextRequest) {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }))
+  const db = await createServerSupabaseClient()
+  const { data: { user } } = await db.auth.getUser().catch(() => ({ data: { user: null } }))
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const svc = await createAdminClient()

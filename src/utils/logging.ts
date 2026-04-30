@@ -1,4 +1,4 @@
-import { createBrowserSupabaseClient } from './supabase/client'
+import { createBrowserSupabaseClient } from './db/client'
 import { ActionType } from '@/types/ui'
 
 export async function logActivity(
@@ -9,7 +9,7 @@ export async function logActivity(
   metadata: Record<string, unknown> = {},
   notifyUserId?: string // Optional: targeted notification
 ) {
-  const supabase = createBrowserSupabaseClient()
+  const db = createBrowserSupabaseClient()
   
   // 1. Validation & Hardening
   // Ensure group_id is a valid UUID (standard format) or null.
@@ -18,11 +18,11 @@ export async function logActivity(
   const validatedGroupId = (groupId && uuidRegex.test(groupId)) ? groupId : null
 
   // Ensure we are logging as the current authenticated user to satisfy RLS auth.uid() = user_id
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = await db.auth.getUser()
   const validatedUserId = user?.id || userId
 
   // 1. Audit Log Entry
-  const { error: logError } = await supabase
+  const { error: logError } = await db
     .from('activity_log')
     .insert({
       user_id: validatedUserId,
@@ -43,7 +43,7 @@ export async function logActivity(
 
   // 2. Real-time Notification Trigger (if applicable)
   if (notifyUserId) {
-    await supabase.from('notifications').insert({
+    await db.from('notifications').insert({
       user_id: notifyUserId,
       type: actionType,
       title: actionType.replace('_', ' ').toUpperCase(),

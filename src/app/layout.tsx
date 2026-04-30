@@ -45,8 +45,8 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         {/* Critical preconnects — reduce first-auth latency */}
-        <link rel="preconnect" href="https://othntbcrtmemavfsslrb.supabase.co" />
-        <link rel="dns-prefetch" href="https://othntbcrtmemavfsslrb.supabase.co" />
+        <link rel="preconnect" href="https://othntbcrtmemavfsslrb.db.co" />
+        <link rel="dns-prefetch" href="https://othntbcrtmemavfsslrb.db.co" />
         <link rel="preconnect" href="https://accounts.google.com" />
         <link rel="dns-prefetch" href="https://lh3.googleusercontent.com" />
       </head>

@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server'
-import { createAdminClient } from '@/utils/supabase/server'
+import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    const supabase = await createAdminClient()
-    const { data, error } = await supabase.rpc('get_donation_total')
+    const db = await createAdminClient()
+    const { data, error } = await db.rpc('get_donation_total')
     if (error) throw error
     return NextResponse.json(data ?? { total_cents: 0, count: 0 }, {
       headers: {

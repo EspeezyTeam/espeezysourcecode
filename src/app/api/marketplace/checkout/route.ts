@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/utils/supabase/server'
+import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 import { createCheckoutSession } from '@/services/stripe'
 
 export async function POST(req: Request) {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user }, error: authErr } = await supabase.auth.getUser()
+  const db = await createServerSupabaseClient()
+  const { data: { user }, error: authErr } = await db.auth.getUser()
 
   if (authErr || !user) {
     return new NextResponse('Authentication required', { status: 401 })
@@ -13,7 +13,7 @@ export async function POST(req: Request) {
   const { listingId } = await req.json()
   
   // 1. Fetch listing details
-  const { data: listing, error: listErr } = await supabase
+  const { data: listing, error: listErr } = await db
     .from('marketplace_listings')
     .select('*')
     .eq('id', listingId)

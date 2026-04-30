@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/utils/supabase/server'
+import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 import { getAppUrl, getStripeClient, getStripePortalConfigurationId } from '@/utils/stripe'
 
 export const dynamic = 'force-dynamic'
@@ -14,8 +14,8 @@ export async function POST() {
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const db = await createServerSupabaseClient()
+  const { data: { user } } = await db.auth.getUser()
     .catch(() => ({ data: { user: null } }))
 
   if (!user) {
@@ -23,7 +23,7 @@ export async function POST() {
   }
 
   // Get the stripe customer id from the profile
-  const { data: profile } = await supabase
+  const { data: profile } = await db
     .from('profiles')
     .select('stripe_customer_id')
     .eq('id', user.id)

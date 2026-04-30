@@ -1,4 +1,4 @@
-import { createAdminClient } from '../utils/supabase/server'
+import { getAdminDb } from '../lib/firebase-admin'
 import type { TaskCategory, TaskStatus } from '../types/database'
 import { taskSchema } from '../utils/validation'
 
@@ -56,39 +56,29 @@ export async function taskWorkflow(payload: TaskWorkflowPayload) {
 async function insertTask(task: TaskPayload) {
   'use step'
 
-  const supabase = await createAdminClient()
-  const { data, error } = await supabase
-    .from('tasks')
-    .insert([{ ...task }])
-    .select('id')
-    .single()
-
-  if (error || !data) {
-    throw new Error(error?.message || 'Unable to create task.')
-  }
-
-  return data
+  const db = getAdminDb()
+  if (!db) throw new Error('Firebase unavailable')
+  
+  const ref = await db.collection('tasks').add({ ...task })
+  return { id: ref.id }
 }
 
 async function updateTask(task: TaskPayload) {
   'use step'
 
-  const supabase = await createAdminClient()
-  const { error } = await supabase
-    .from('tasks')
-    .update({
-      title: task.title,
-      description: task.description,
-      status: task.status,
-      category: task.category,
-      assignees: task.assignees,
-      due_date: task.due_date,
-    })
-    .eq('id', task.id)
+  if (!task.id) throw new Error('Task ID missing')
 
-  if (error) {
-    throw new Error(error.message)
-  }
+  const db = getAdminDb()
+  if (!db) throw new Error('Firebase unavailable')
+  
+  await db.collection('tasks').doc(task.id).update({
+    title: task.title,
+    description: task.description,
+    status: task.status,
+    category: task.category,
+    assignees: task.assignees,
+    due_date: task.due_date,
+  })
 }
 
 async function logActivity(
@@ -100,12 +90,16 @@ async function logActivity(
 ) {
   'use step'
 
-  const supabase = await createAdminClient()
-  const { error } = await supabase.from('activity_log').insert([{ user_id: userId, group_id: groupId, action_type: actionType, description, metadata }])
-
-  if (error) {
-    throw new Error(error.message)
-  }
+  const db = getAdminDb()
+  if (!db) throw new Error('Firebase unavailable')
+  
+  await db.collection('activity_log').add({ 
+    user_id: userId, 
+    group_id: groupId, 
+    action_type: actionType, 
+    description, 
+    metadata 
+  })
 }
 
 async function notifyAssignees(assignees: string[], title: string, taskId: string, actingUserId: string) {
@@ -117,17 +111,20 @@ async function notifyAssignees(assignees: string[], title: string, taskId: strin
     return
   }
 
-  const supabase = await createAdminClient()
-  const notifications = filtered.map((userId) => ({
-    user_id: userId,
-    type: 'task_created',
-    title: 'New task assigned',
-    message: `You were assigned to ${title}`,
-    link: `/dashboard?taskId=${taskId}`
-  }))
+  const db = getAdminDb()
+  if (!db) throw new Error('Firebase unavailable')
 
-  const { error } = await supabase.from('notifications').insert(notifications)
-  if (error) {
-    throw new Error(error.message)
-  }
+  const batch = db.batch()
+  filtered.forEach((userId) => {
+    const ref = db.collection('notifications').doc()
+    batch.set(ref, {
+      user_id: userId,
+      type: 'task_created',
+      title: 'New task assigned',
+      message: `You were assigned to ${title}`,
+      link: `/dashboard?taskId=${taskId}`
+    })
+  })
+
+  await batch.commit()
 }

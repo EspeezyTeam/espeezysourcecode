@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabaseClient, createAdminClient } from '@/utils/supabase/server'
+import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 
 export async function GET() {
   // Public endpoint — returns non-sensitive config needed by pre-reg page
@@ -16,8 +16,8 @@ export async function GET() {
 
 export async function PUT(req: Request) {
   // Admin-only write
-  const supabase = await createServerSupabaseClient()
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  const db = await createServerSupabaseClient()
+  const { data: { user }, error: authError } = await db.auth.getUser()
   if (authError || !user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

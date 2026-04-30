@@ -59,9 +59,10 @@ cp .env.example .env.local
 ```
 
 Edit `.env.local` and set at minimum:
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
+- `NEXT_PUBLIC_FIREBASE_API_KEY`
+- `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
+- `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
+- `FIREBASE_SERVICE_ACCOUNT_KEY` 
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
 - `AGENT_API_KEY`
@@ -337,7 +338,7 @@ docker compose -f docker-compose.dev.yml up -d --build
 
 Note: rollback rewrites working tree state on VPS. Only do this on server copy.
 
-## 6.4 Env/Supabase/Stripe Runtime Failures
+## 6.4 Env/Firebase/Stripe Runtime Failures
 
 1. Confirm `.env.local` exists and keys are non-empty.
 2. Confirm key names match `.env.example` exactly.
@@ -351,7 +352,7 @@ Note: rollback rewrites working tree state on VPS. Only do this on server copy.
 1. Do not commit `.env.local`.
 2. Rotate leaked keys immediately.
 3. Store long-term secrets in managed secret stores.
-4. Keep `SUPABASE_SERVICE_ROLE_KEY` server-only.
+4. Keep `FIREBASE_SERVICE_ACCOUNT_KEY` server-only.
 5. Never expose service role key in browser/client code.
 
 ---
@@ -464,7 +465,7 @@ curl -I https://espeezy.com https://espeezy.com/terms https://espeezy.com/privac
 - Infra owner: <SOSPETERKEDOGO>
 - Domain DNS owner: <SOSPETERKEDOGO>
 - Stripe account owner: <SOSPETERKEDOGO>
-- Supabase owner: <SOSPETERKEDOGO>
+- Firebase owner: <SOSPETERKEDOGO>
 - Contact info: <'Website: https://me.devpete.co.uk/'>
 ---
 

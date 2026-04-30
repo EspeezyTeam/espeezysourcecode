@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { db, createBrowserSupabaseClient } from '@/lib/db-client'
 import { 
   ShoppingBag, 
   Search, 
@@ -58,7 +58,7 @@ export default function MarketplacePage() {
   const [showWalkthrough, setShowWalkthrough] = useState(false)
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null)
   
-  const supabase = useMemo(() => createBrowserSupabaseClient(), [])
+  const db = useMemo(() => createBrowserSupabaseClient(), [])
   const { withLoading } = useSmartLoading()
   const { addToast } = useNotifications()
 
@@ -85,7 +85,7 @@ export default function MarketplacePage() {
 
   const fetchListings = useCallback(async () => {
     setLoading(true)
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from('marketplace_listings')
       .select('*, profiles(full_name, avatar_url, role)')
       .order('created_at', { ascending: false })
@@ -97,7 +97,7 @@ export default function MarketplacePage() {
       localStorage.setItem('gf_marketplace_cache', JSON.stringify(data || []))
     }
     setLoading(false)
-  }, [supabase])
+  }, [db])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -216,7 +216,7 @@ export default function MarketplacePage() {
                   <div style={{ height: '220px', background: 'var(--bg-sub)', position: 'relative', overflow: 'hidden' }}>
                     {item.images?.[0] ? (
                       <Image 
-                        src={supabase.storage.from('marketplace').getPublicUrl(item.images[0]).data.publicUrl} 
+                        src={db.storage.from('marketplace').getPublicUrl(item.images[0]).data.publicUrl} 
                         alt={item.title} 
                         fill
                         className="object-cover transition-transform hover:scale-110 duration-500"
@@ -387,7 +387,7 @@ function PostListingModal({ onClose, onSuccess }: { onClose: () => void, onSucce
   const [uploading, setUploading] = useState(false)
   const [agreed, setAgreed] = useState(false)
 
-  const supabase = createBrowserSupabaseClient()
+  const db = createBrowserSupabaseClient()
   const { addToast } = useNotifications()
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -421,18 +421,18 @@ function PostListingModal({ onClose, onSuccess }: { onClose: () => void, onSucce
         payment_method: paymentMethod,
       })
 
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { user } } = await db.auth.getUser()
       if (!user) throw new Error('Auth required')
 
       const uploadedPaths: string[] = []
       for (const img of images) {
         const ext = img.name.split('.').pop()
         const path = `${user.id}/${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${ext}`
-        const { error: upErr } = await supabase.storage.from('marketplace').upload(path, img)
+        const { error: upErr } = await db.storage.from('marketplace').upload(path, img)
         if (!upErr) uploadedPaths.push(path)
       }
 
-      const { error } = await supabase.from('marketplace_listings').insert({
+      const { error } = await db.from('marketplace_listings').insert({
         owner_id: user.id,
         title,
         description,
@@ -685,7 +685,7 @@ function PostListingModal({ onClose, onSuccess }: { onClose: () => void, onSucce
 }
 
 function ItemDetailModal({ listing, onClose }: { listing: Listing, onClose: () => void }) {
-  const supabase = createBrowserSupabaseClient()
+  const db = createBrowserSupabaseClient()
   
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 12000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
@@ -710,7 +710,7 @@ function ItemDetailModal({ listing, onClose }: { listing: Listing, onClose: () =
           <div style={{ background: 'var(--bg-sub)', position: 'relative' }}>
             {listing.images?.[0] ? (
               <Image 
-                src={supabase.storage.from('marketplace').getPublicUrl(listing.images[0]).data.publicUrl} 
+                src={db.storage.from('marketplace').getPublicUrl(listing.images[0]).data.publicUrl} 
                 alt={listing.title} 
                 fill
                 className="object-cover"

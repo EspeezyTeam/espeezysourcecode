@@ -1,4 +1,4 @@
-import { createAdminClient } from '@/utils/supabase/server'
+import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 

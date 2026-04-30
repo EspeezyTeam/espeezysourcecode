@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { z } from 'zod'
-import { createServerSupabaseClient, createAdminClient } from '@/utils/supabase/server'
+import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 import { sendP2PTransactionEmail } from '@/services/email'
 
 export const dynamic = 'force-dynamic'
@@ -19,8 +19,8 @@ const PayoutSchema = z.object({
 })
 
 async function isAdminUser(): Promise<boolean> {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }))
+  const db = await createServerSupabaseClient()
+  const { data: { user } } = await db.auth.getUser().catch(() => ({ data: { user: null } }))
   if (!user) return false
   const admin = await createAdminClient()
   const { data: profile } = await admin.from('profiles').select('role').eq('id', user.id).single()

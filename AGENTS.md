@@ -83,7 +83,7 @@ When you send a command, the orchestrator (Apex / GitHub Copilot) will:
 | Specialisation | `backend`                                       |
 | Role        | `builder`                                          |
 | Pair        | Delta (validator)                                  |
-| Capabilities | Next.js API Routes, Supabase, PostgreSQL, RLS, Stripe, Webhooks |
+| Capabilities | Next.js API Routes, Firebase, Firestore, Rules, Stripe, Webhooks |
 
 **Responsibilities**:
 - Build API routes in `src/app/api/`
@@ -201,9 +201,9 @@ Never mark a task `done` until its paired validator has confirmed. Apex does not
 
 All agents operate within the existing environment:
 - **Runtime**: Node.js 20, Next.js 16 App Router
-- **Database**: Supabase Postgres (read replicas via `createReadClient()`)
-- **Auth**: Supabase SSR cookies (`createServerSupabaseClient()`)
-- **Admin writes**: `createAdminClient()` — service-role only
+- **Database**: Firebase Firestore (`getDb()`)
+- **Auth**: Firebase Auth (`getAuth()`)
+- **Admin writes**: Firebase Admin SDK (`getAdminDb()`, `getAdminAuth()`)
 - **Rate limiting**: Upstash Redis sliding window (via `src/proxy.ts`)
 - **Deployment**: Vercel Pro, 13 regions
 - **Tests**: Playwright (`npx playwright test`)

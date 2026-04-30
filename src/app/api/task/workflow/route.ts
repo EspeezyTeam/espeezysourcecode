@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server'
 import { taskWorkflow } from '@/workflows/taskWorkflow'
-import { createServerSupabaseClient } from '@/utils/supabase/server'
+import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 import { start } from '@/utils/workflow'
 
 export async function POST(req: Request) {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  const db = await createServerSupabaseClient()
+  const { data: { user }, error: userError } = await db.auth.getUser()
 
   if (userError || !user) {
     return new NextResponse(JSON.stringify({ error: 'Authentication required.' }), { status: 401 })

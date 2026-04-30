@@ -8,7 +8,7 @@ import {
   Loader2,
   Plus
 } from 'lucide-react'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { db, createBrowserSupabaseClient } from '@/lib/db-client'
 import { useNotifications } from '@/components/NotificationProvider'
 import { listingSchema } from '@/utils/validation'
 import { ListingCondition, PaymentMethod } from '@/types/marketplace'
@@ -34,7 +34,7 @@ export function PostListingModal({ onClose, onSuccess }: PostListingModalProps) 
   const [uploading, setUploading] = useState(false)
   const [agreed, setAgreed] = useState(false)
 
-  const supabase = createBrowserSupabaseClient()
+  const db = createBrowserSupabaseClient()
   const { addToast } = useNotifications()
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -68,18 +68,18 @@ export function PostListingModal({ onClose, onSuccess }: PostListingModalProps) 
         payment_method: paymentMethod,
       })
 
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { user } } = await db.auth.getUser()
       if (!user) throw new Error('Auth required')
 
       const uploadedPaths: string[] = []
       for (const img of images) {
         const ext = img.name.split('.').pop()
         const path = `${user.id}/${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${ext}`
-        const { error: upErr } = await supabase.storage.from('marketplace').upload(path, img)
+        const { error: upErr } = await db.storage.from('marketplace').upload(path, img)
         if (!upErr) uploadedPaths.push(path)
       }
 
-      const { error } = await supabase.from('marketplace_listings').insert({
+      const { error } = await db.from('marketplace_listings').insert({
         owner_id: user.id,
         title,
         description,

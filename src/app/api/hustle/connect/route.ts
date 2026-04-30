@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
-import { createServerSupabaseClient, createAdminClient } from '@/utils/supabase/server'
+import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,10 +22,10 @@ export async function POST() {
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 
-  const supabase = await createServerSupabaseClient()
+  const db = await createServerSupabaseClient()
   const {
     data: { user },
-  } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }))
+  } = await db.auth.getUser().catch(() => ({ data: { user: null } }))
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const svc = await createAdminClient()
@@ -83,10 +83,10 @@ export async function GET() {
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 
-  const supabase = await createServerSupabaseClient()
+  const db = await createServerSupabaseClient()
   const {
     data: { user },
-  } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }))
+  } = await db.auth.getUser().catch(() => ({ data: { user: null } }))
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const svc = await createAdminClient()

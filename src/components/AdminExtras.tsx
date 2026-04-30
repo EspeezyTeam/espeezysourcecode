@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { db, createBrowserSupabaseClient } from '@/lib/db-client'
 import {
   Users, AlertTriangle, Activity, MessageSquare, DollarSign,
   Search, Loader2, CheckCircle, XCircle, Ban, Send, Mail, ShieldAlert
@@ -35,7 +35,7 @@ interface ServerError {
   id: number; route?: string; method?: string; message: string; stack?: string; created_at: string
 }
 
-const supabase = createBrowserSupabaseClient()
+const db = createBrowserSupabaseClient()
 
 export default function AdminExtras() {
   const [tab, setTab] = useState<AdminTab>('users')
@@ -70,7 +70,7 @@ export default function AdminExtras() {
 
   const loadUsers = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase
+    const { data } = await db
       .from('profiles')
       .select('id, full_name, email, account_status, subscription_plan, created_at, stripe_account_status, role')
       .order('created_at', { ascending: false })
@@ -81,7 +81,7 @@ export default function AdminExtras() {
 
   const loadActivity = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase
+    const { data } = await db
       .from('activity_log')
       .select('id, created_at, action, resource_type, severity, user_id')
       .order('created_at', { ascending: false })
@@ -92,7 +92,7 @@ export default function AdminExtras() {
 
   const loadFeedback = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase
+    const { data } = await db
       .from('user_feedback')
       .select('id, created_at, feedback_type, message, rating, user_id')
       .order('created_at', { ascending: false })
@@ -164,7 +164,7 @@ export default function AdminExtras() {
 
   async function setAccountStatus(userId: string, status: 'active' | 'suspended' | 'deactivated') {
     setActionLoading(userId)
-    const { error } = await supabase.from('profiles').update({ account_status: status }).eq('id', userId)
+    const { error } = await db.from('profiles').update({ account_status: status }).eq('id', userId)
     if (!error) setUsers(prev => prev.map(u => u.id === userId ? { ...u, account_status: status } : u))
     setActionLoading(null)
   }
