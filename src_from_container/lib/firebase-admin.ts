@@ -2,9 +2,9 @@ import admin from 'firebase-admin'
 import { existsSync, readFileSync } from 'fs'
 
 type ServiceAccountShape = {
-  project_id: string
-  client_email: string
-  private_key: string
+  projectId: string
+  clientEmail: string
+  privateKey: string
 }
 
 function normalizeSecretInput(value: string) {
@@ -88,18 +88,18 @@ function findDefaultServiceAccount() {
 function normalizeServiceAccount(value: Record<string, unknown> | null): ServiceAccountShape | null {
   if (!value) return null
 
-  const projectId = value.project_id
-  const clientEmail = value.client_email
-  const privateKeyRaw = value.private_key
+  const projectId = value.projectId ?? value.project_id
+  const clientEmail = value.clientEmail ?? value.client_email
+  const privateKeyRaw = value.privateKey ?? value.private_key
 
   if (typeof projectId !== 'string' || typeof clientEmail !== 'string' || typeof privateKeyRaw !== 'string') {
     return null
   }
 
   return {
-    project_id: projectId,
-    client_email: clientEmail,
-    private_key: privateKeyRaw.replace(/\\n/g, '\n'),
+    projectId,
+    clientEmail,
+    privateKey: privateKeyRaw.replace(/\\n/g, '\n'),
   }
 }
 
