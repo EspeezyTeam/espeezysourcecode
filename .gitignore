@@ -52,6 +52,7 @@ firebase.json
 .firebase/
 *-firebase-adminsdk-*.json
 firebase-adminsdk*.json
+*admincred*.json
 firebase.config
 
 
