@@ -2,9 +2,9 @@ import admin from 'firebase-admin'
 import { existsSync, readFileSync } from 'fs'
 
 type ServiceAccountShape = {
-  project_id: string
-  client_email: string
-  private_key: string
+  projectId: string
+  clientEmail: string
+  privateKey: string
 }
 
 function normalizeSecretInput(value: string) {
@@ -88,18 +88,18 @@ function findDefaultServiceAccount() {
 function normalizeServiceAccount(value: Record<string, unknown> | null): ServiceAccountShape | null {
   if (!value) return null
 
-  const projectId = value.project_id
-  const clientEmail = value.client_email
-  const privateKeyRaw = value.private_key
+  const projectId = value.projectId ?? value.project_id
+  const clientEmail = value.clientEmail ?? value.client_email
+  const privateKeyRaw = value.privateKey ?? value.private_key
 
   if (typeof projectId !== 'string' || typeof clientEmail !== 'string' || typeof privateKeyRaw !== 'string') {
     return null
   }
 
   return {
-    project_id: projectId,
-    client_email: clientEmail,
-    private_key: privateKeyRaw.replace(/\\n/g, '\n'),
+    projectId,
+    clientEmail,
+    privateKey: privateKeyRaw.replace(/\\n/g, '\n'),
   }
 }
 
@@ -111,23 +111,44 @@ function initAdmin() {
   const googleCreds = process.env.GOOGLE_APPLICATION_CREDENTIALS
 
   try {
+    let source = 'none'
     const fromKey = rawKey ? parseServiceAccountKey(rawKey) : null
     const fromExplicitPath = parseServiceAccountFromEnvOrPath(explicitPath)
     const fromGoogleCreds = parseServiceAccountFromEnvOrPath(googleCreds)
     const fromDefaultPath = findDefaultServiceAccount()
-    const serviceAccount = normalizeServiceAccount(fromKey || fromExplicitPath || fromGoogleCreds || fromDefaultPath)
+
+    const raw = fromKey || fromExplicitPath || fromGoogleCreds || fromDefaultPath
+    if (fromKey) source = 'FIREBASE_SERVICE_ACCOUNT_KEY (env)'
+    else if (fromExplicitPath) source = `FIREBASE_SERVICE_ACCOUNT_PATH (${explicitPath})`
+    else if (fromGoogleCreds) source = `GOOGLE_APPLICATION_CREDENTIALS (${googleCreds})`
+    else if (fromDefaultPath) source = 'default file path'
+
+    const serviceAccount = normalizeServiceAccount(raw)
 
     if (!serviceAccount) {
-      throw new Error('Firebase Admin credentials are invalid. Set FIREBASE_SERVICE_ACCOUNT_KEY (JSON/base64) or FIREBASE_SERVICE_ACCOUNT_PATH/GOOGLE_APPLICATION_CREDENTIALS (file path).')
+      throw new Error(
+        `Firebase Admin credentials are invalid (source: ${source}). ` +
+        'Ensure FIREBASE_SERVICE_ACCOUNT_KEY contains a valid service account JSON (not an OAuth client key). ' +
+        'Required fields: project_id, client_email, private_key.'
+      )
     }
 
-    admin.initializeApp({
+    console.log(`[firebase-admin] Initializing with credentials from: ${source} (project: ${serviceAccount.projectId})`)
+
+    const appConfig: admin.AppOptions = {
       credential: admin.credential.cert(serviceAccount),
-      databaseURL: 'https://espeezylearning.firebaseio.com'
-    });
+    }
+    if (process.env.FIREBASE_DATABASE_URL) {
+      appConfig.databaseURL = process.env.FIREBASE_DATABASE_URL
+    }
+    if (process.env.FIREBASE_STORAGE_BUCKET) {
+      appConfig.storageBucket = process.env.FIREBASE_STORAGE_BUCKET
+    }
+
+    admin.initializeApp(appConfig)
     return true;
   } catch (error) {
-    console.error('Firebase Admin initialization error:', error);
+    console.error('[firebase-admin] Initialization error:', error);
     return false;
   }
 }

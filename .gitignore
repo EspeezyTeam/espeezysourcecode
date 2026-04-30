@@ -10,6 +10,9 @@
 !.yarn/releases
 !.yarn/versions
 
+.espeezylearningadmincred.json
+
+
 # testing
 /coverage
 
@@ -49,6 +52,7 @@ firebase.json
 .firebase/
 *-firebase-adminsdk-*.json
 firebase-adminsdk*.json
+*admincred*.json
 firebase.config
 
 
