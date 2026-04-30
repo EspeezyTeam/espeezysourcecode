@@ -1,42 +1,42 @@
-import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { auth } from '@/lib/firebase'
+
+export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
-  const code = searchParams.get('code')
-  // next is the path to redirect to after success
   const next = searchParams.get('next') ?? '/dashboard'
   const errorParam = searchParams.get('error')
   const errorDesc = searchParams.get('error_description')
 
+  // Handle OAuth provider errors
   if (errorParam || errorDesc) {
     const msg = errorDesc || errorParam || 'OAuth authentication failed'
     console.error('[Auth Callback] Provider Error:', msg)
     return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(msg)}`)
   }
 
-  if (code) {
-    const db = await createServerSupabaseClient()
-    const { error } = await db.auth.exchangeCodeForSession(code)
-    if (!error) {
-      // Check if this is a password recovery flow
-      const { data: { user } } = await db.auth.getUser()
-      const isRecovery = searchParams.get('type') === 'recovery' || !user?.last_sign_in_at
+  // Firebase handles OAuth redirect automatically — check if user is now authenticated
+  const currentUser = auth.currentUser
 
-      // Validate redirect path — must be a relative path on same origin (open redirect prevention)
-      const rawNext = next
-      const isSafeRedirect = rawNext.startsWith('/') && !rawNext.startsWith('//') && !rawNext.includes(':')
-      const safePath = isSafeRedirect ? rawNext : '/dashboard'
+  if (currentUser) {
+    // User is authenticated after OAuth redirect
+    // Check if this is a password recovery flow
+    const isRecovery = searchParams.get('type') === 'recovery' || !currentUser.metadata.lastSignInTime
 
-      const redirectPath = isRecovery ? '/auth/reset-password' : safePath
-      const redirectUrl = new URL(redirectPath, origin).toString()
-      return NextResponse.redirect(redirectUrl)
-    }
-    
-    console.error('[Auth Callback] Exchange Error:', error.message)
-    return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(error.message)}`)
+    // Validate redirect path — must be a relative path on same origin (open redirect prevention)
+    const rawNext = next
+    const isSafeRedirect = rawNext.startsWith('/') && !rawNext.startsWith('//') && !rawNext.includes(':')
+    const safePath = isSafeRedirect ? rawNext : '/dashboard'
+
+    const redirectPath = isRecovery ? '/auth/reset-password' : safePath
+    const redirectUrl = new URL(redirectPath, origin).toString()
+    return NextResponse.redirect(redirectUrl)
   }
 
-  // Return the user to an error page with instructions
-  return NextResponse.redirect(`${origin}/login?error=Invalid or missing authentication code. Visit your Supabase Dashboard to verify Redirect URIs.`)
+  // If not authenticated yet, Firebase will handle the redirect naturally.
+  // Redirect to login as fallback
+  return NextResponse.redirect(
+    `${origin}/login?error=${encodeURIComponent('Authentication failed. Please try again.')}`
+  )
 }

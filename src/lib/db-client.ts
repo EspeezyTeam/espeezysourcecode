@@ -8,6 +8,7 @@ import {
   getDoc,
   getDocs,
   limit as fsLimit,
+  onSnapshot,
   orderBy,
   query,
   updateDoc,
@@ -439,15 +440,78 @@ const client = {
       },
     }),
   },
-  channel: (_name: string) => {
-    const handler = {
-      on: () => handler,
-      subscribe: () => ({ unsubscribe: () => {} }),
+  channel: (name: string) => {
+    let eventHandlers: Array<{ event: string; filter: any; callback: () => void }> = []
+    let unsubscribeFn: (() => void) | null = null
+
+    return {
+      on: (eventType: string, filter: any, callback: () => void) => {
+        eventHandlers.push({ event: eventType, filter, callback })
+        return {
+          subscribe: () => {
+            // Only set up listener on first subscribe
+            if (unsubscribeFn) return { unsubscribe: () => unsubscribeFn?.() }
+
+            // Extract table name from filter
+            const tableName = filter?.table
+            if (!tableName) return { unsubscribe: () => {} }
+
+            try {
+              // Build Firestore query with filters
+              const col = collection(firebaseDb, tableName)
+              let q = query(col)
+
+              // Apply filter conditions if present
+              if (filter?.filter) {
+                const conditions = []
+                // Parse simple filters like "group_id=eq.123"
+                const filterParts = filter.filter.split(',')
+                for (const part of filterParts) {
+                  const match = part.match(/(\w+)=eq\.(.+)/)
+                  if (match) {
+                    const [, field, value] = match
+                    // Try to parse as number
+                    const parsedValue = /^\d+$/.test(value) ? parseInt(value, 10) : value
+                    conditions.push(where(field, '==', parsedValue))
+                  }
+                }
+                if (conditions.length > 0) {
+                  q = query(col, ...conditions)
+                }
+              }
+
+              // Subscribe to changes
+              unsubscribeFn = onSnapshot(q, () => {
+                // Call all registered callbacks
+                for (const handler of eventHandlers) {
+                  handler.callback()
+                }
+              })
+
+              return {
+                unsubscribe: () => {
+                  unsubscribeFn?.()
+                  unsubscribeFn = null
+                  eventHandlers = []
+                },
+              }
+            } catch {
+              // Fallback if listener setup fails
+              return { unsubscribe: () => {} }
+            }
+          },
+        }
+      },
     }
-    return handler
   },
-  removeChannel: async (_channel: unknown) => {},
-  removeAllChannels: async () => {},
+  removeChannel: async (channel: any) => {
+    if (channel?.unsubscribe) {
+      channel.unsubscribe()
+    }
+  },
+  removeAllChannels: async () => {
+    // Channels handle their own cleanup via unsubscribe
+  },
 }
 
 export const db = client as any
