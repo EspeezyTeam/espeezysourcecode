@@ -59,6 +59,32 @@ npx playwright test tests/security-adversarial.spec.ts --project=security --repo
 npx tsc --noEmit
 ```
 
+## Resilient VPS Deployment
+
+Use the hardened deploy script to avoid common rollout blockers (stale `node_modules`, port 80/443 collisions, unhealthy app startup):
+
+```bash
+npm run deploy:resilient
+```
+
+Optional modes:
+
+```bash
+# Force edge proxy startup (Caddy profile)
+npm run deploy:edge
+
+# Always deploy app only on port 3000
+npm run deploy:app-only
+```
+
+What it does automatically:
+
+- Pulls latest code with fast-forward only
+- Rebuilds and starts the app container
+- Waits for container health
+- Skips Caddy when host ports 80/443 are already occupied
+- Keeps the app live on port 3000 even if edge proxy cannot bind
+
 ## Stripe Setup
 
 The application expects Stripe to be configured for:
