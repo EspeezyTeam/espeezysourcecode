@@ -202,7 +202,7 @@ class FirestoreQueryBuilder {
   }
 }
 
-const db = {
+export const db = {
   from: (table: string) => new FirestoreQueryBuilder(table) as any,
   rpc: async (name: string, args?: any) => {
     // Firestore doesn't support RPCs. This is a shim for legacy code.
