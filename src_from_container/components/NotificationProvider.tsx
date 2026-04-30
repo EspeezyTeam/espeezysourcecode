@@ -1,7 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react'
-import { db, auth } from '@/lib/firebase'
+import { db, auth, firestoreClientEnabled } from '@/lib/firebase'
 import { 
   collection, 
   query, 
@@ -39,6 +39,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   }
 
   const fetchNotifications = useCallback(async () => {
+    if (!firestoreClientEnabled) return
     const user = auth.currentUser
     if (!user) return
 
@@ -57,6 +58,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   }, [])
 
   useEffect(() => {
+    if (!firestoreClientEnabled) return
     if (typeof window !== 'undefined' && 'Notification' in window) {
       if (window.Notification.permission === 'default') {
         window.Notification.requestPermission();
@@ -126,6 +128,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   }, [])
 
   const markAsRead = async (id: string) => {
+    if (!firestoreClientEnabled) return
     const original = notifications.find(n => n.id === id)
     if (!original || original.read) return
 
@@ -141,6 +144,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   }
 
   const markAllAsRead = async () => {
+    if (!firestoreClientEnabled) return
     const user = auth.currentUser
     if (!user) return
 

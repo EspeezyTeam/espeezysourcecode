@@ -14,6 +14,9 @@ const firebaseConfig = {
 }
 
 const firestoreDatabaseId = process.env.NEXT_PUBLIC_FIREBASE_DATABASE_ID?.trim()
+const firestoreFlag = process.env.NEXT_PUBLIC_FIREBASE_ENABLE_FIRESTORE
+
+export const firestoreClientEnabled = firestoreFlag === 'true' || (firestoreFlag == null && process.env.VERCEL === '1')
 
 // Prevent re-initialisation during Next.js hot-reload
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0]

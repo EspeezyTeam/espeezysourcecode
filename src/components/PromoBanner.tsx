@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { X, Zap } from 'lucide-react'
-import { db } from '@/lib/firebase'
+import { db, firestoreClientEnabled } from '@/lib/firebase'
 import { doc, onSnapshot, DocumentData } from 'firebase/firestore'
 
 export default function PromoBanner() {
@@ -14,6 +14,7 @@ export default function PromoBanner() {
   })
 
   useEffect(() => {
+    if (!firestoreClientEnabled) return
     if (!isClient) return;
 
     const unsub = onSnapshot(doc(db, 'platform_config', 'main_banner'), (snap) => {
