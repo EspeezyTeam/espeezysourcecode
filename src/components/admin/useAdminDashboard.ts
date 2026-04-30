@@ -15,7 +15,20 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { db } from '@/lib/firebase'
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  getDoc, 
+  doc, 
+  updateDoc, 
+  onSnapshot, 
+  orderBy, 
+  limit,
+  getCountFromServer
+} from 'firebase/firestore'
 import { useProfile } from '@/context/ProfileContext'
 import { useNotifications } from '@/components/NotificationProvider'
 import type {
@@ -42,7 +55,7 @@ const DEFAULT_LAUNCH_CONFIG: LaunchConfig = {
 
 const SEED_LOGS: SystemLog[] = [
   { t: '13:42:01', m: 'AUTH_GATEWAY: [200] OK' },
-  { t: '13:42:05', m: 'SUPABASE_SYNC: Institutional Node Established' },
+  { t: '13:42:05', m: 'FIREBASE_SYNC: Institutional Node Established' },
   { t: '13:42:12', m: 'STRIPE_WEBHOOK: Listening on events' },
   { t: '13:42:18', m: 'ELITE30_CHECK: 4 redemptions validated' },
 ]
@@ -52,7 +65,6 @@ const SEED_LOGS: SystemLog[] = [
 export function useAdminDashboard() {
   const { profile, loading: profileLoading } = useProfile()
   const router = useRouter()
-  const supabase = createBrowserSupabaseClient()
   const { addToast } = useNotifications()
 
   // ── Auth / verification state ──
@@ -106,59 +118,59 @@ export function useAdminDashboard() {
   }, [isVerified])
 
   // ── fetchAdminData ─────────────────────────────────────────────────────────
-  // All 5 queries run in parallel with Promise.all for performance.
+  // All aggregation and list queries run in parallel.
   const fetchAdminData = useCallback(async () => {
     setLoading(true)
 
-    const [
-      { count: totalUsers },
-      { count: proUsers },
-      { count: premiumUsers },
-      { count: lifetimeUsers },
-      { data: recent },
-      { data: platformConfig },
-    ] = await Promise.all([
-      supabase.from('profiles').select('*', { count: 'exact', head: true }),
-      supabase
-        .from('profiles')
-        .select('*', { count: 'exact', head: true })
-        .eq('subscription_plan', 'pro'),
-      supabase
-        .from('profiles')
-        .select('*', { count: 'exact', head: true })
-        .eq('subscription_plan', 'premium'),
-      supabase
-        .from('profiles')
-        .select('*', { count: 'exact', head: true })
-        .eq('subscription_plan', 'lifetime'),
-      supabase
-        .from('profiles')
-        .select('id, full_name, email, subscription_plan, created_at, role')
-        .order('created_at', { ascending: false })
-        .limit(8),
-      supabase.from('platform_config').select('*'),
-    ])
+    try {
+      const [
+        totalUsersSnap,
+        proUsersSnap,
+        premiumUsersSnap,
+        lifetimeUsersSnap,
+        recentSnap,
+        configSnap,
+      ] = await Promise.all([
+        getCountFromServer(collection(db, 'profiles')),
+        getCountFromServer(query(collection(db, 'profiles'), where('subscription_plan', '==', 'pro'))),
+        getCountFromServer(query(collection(db, 'profiles'), where('subscription_plan', '==', 'premium'))),
+        getCountFromServer(query(collection(db, 'profiles'), where('subscription_plan', '==', 'lifetime'))),
+        getDocs(query(collection(db, 'profiles'), orderBy('created_at', 'desc'), limit(8))),
+        getDocs(collection(db, 'platform_config'))
+      ])
 
-    // Convert the config rows array into a key-indexed map
-    const configMap = (platformConfig ?? []).reduce<PlatformConfig>(
-      (acc, item) => ({ ...acc, [item.key]: item }),
-      {},
-    )
+      const totalUsers = totalUsersSnap.data().count
+      const proUsers = proUsersSnap.data().count
+      const premiumUsers = premiumUsersSnap.data().count
+      const lifetimeUsers = lifetimeUsersSnap.data().count
 
-    setStats({
-      users: totalUsers ?? 0,
-      pro: proUsers ?? 0,
-      premium: (premiumUsers ?? 0) + (lifetimeUsers ?? 0),
-      // Estimated revenue calculation
-      revenue:
-        (proUsers ?? 0) * 4.99 +
-        (premiumUsers ?? 0) * 14.99 +
-        (lifetimeUsers ?? 0) * 99,
-    })
-    setRecentUsers((recent as RecentUser[]) ?? [])
-    setConfig(configMap)
-    setLoading(false)
-  }, [supabase])
+      // Convert the config rows array into a key-indexed map
+      const configMap = configSnap.docs.reduce<PlatformConfig>(
+        (acc, doc) => {
+          const item = doc.data() as any
+          return { ...acc, [item.key]: item }
+        },
+        {},
+      )
+
+      setStats({
+        users: totalUsers,
+        pro: proUsers,
+        premium: premiumUsers + lifetimeUsers,
+        // Estimated revenue calculation
+        revenue:
+          proUsers * 4.99 +
+          premiumUsers * 14.99 +
+          lifetimeUsers * 99,
+      })
+      setRecentUsers(recentSnap.docs.map(d => ({ id: d.id, ...d.data() } as unknown as RecentUser)))
+      setConfig(configMap)
+    } catch (err: any) {
+      console.error('Fetch admin data error:', err.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
   // ── Effect: fetch data + real-time subscriptions once verified ─────────────
   useEffect(() => {
@@ -166,34 +178,27 @@ export function useAdminDashboard() {
 
     queueMicrotask(() => void fetchAdminData())
 
-    const channel = supabase
-      .channel('admin_sync')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'platform_config' },
-        () => {
-          addToast('Platform Real-time Sync', 'Marketing configuration updated.', 'success')
+    // Platform Config listener
+    const configUnsub = onSnapshot(collection(db, 'platform_config'), () => {
+      addToast('Platform Real-time Sync', 'Marketing configuration updated.', 'success')
+      fetchAdminData()
+    })
+
+    // New Profile listener
+    const profileUnsub = onSnapshot(query(collection(db, 'profiles'), orderBy('created_at', 'desc'), limit(1)), (snap) => {
+      snap.docChanges().forEach(change => {
+        if (change.type === 'added') {
+          addToast('Institutional Event', 'User registration detected. Refreshing terminal...', 'success')
           fetchAdminData()
-        },
-      )
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'profiles' },
-        () => {
-          addToast(
-            'Institutional Event',
-            'User registration detected. Refreshing terminal...',
-            'success',
-          )
-          fetchAdminData()
-        },
-      )
-      .subscribe()
+        }
+      })
+    })
 
     return () => {
-      supabase.removeChannel(channel)
+      configUnsub()
+      profileUnsub()
     }
-  }, [isVerified, supabase, addToast, fetchAdminData])
+  }, [isVerified, addToast, fetchAdminData])
 
   // ── Effect: load launch config and pre-reg count ───────────────────────────
   useEffect(() => {
@@ -242,7 +247,6 @@ export function useAdminDashboard() {
 
   /**
    * Performs a quick user action (ban / upgrade / unlock) from the user list.
-   * Uses the Supabase client directly so the change is instant.
    */
   const handleUserAction = useCallback(
     async (userId: string, action: 'unlock' | 'upgrade' | 'ban') => {
@@ -252,26 +256,22 @@ export function useAdminDashboard() {
         'success',
       )
 
-      const updateData =
+      const updateData: any =
         action === 'upgrade'
           ? { subscription_plan: 'premium' }
           : action === 'ban'
             ? { role: 'banned' }
             : { role: 'user' }
 
-      const { error } = await supabase
-        .from('profiles')
-        .update(updateData)
-        .eq('id', userId)
-
-      if (error) {
-        addToast('Command Failed', error.message, 'error')
-      } else {
+      try {
+        await updateDoc(doc(db, 'profiles', userId), updateData)
         addToast('Operation Success', 'Database synchronized.', 'success')
         fetchAdminData()
+      } catch (err: any) {
+        addToast('Command Failed', err.message, 'error')
       }
     },
-    [supabase, addToast, fetchAdminData],
+    [addToast, fetchAdminData],
   )
 
   /** Updates a single key in the platform_config table. */
@@ -281,20 +281,23 @@ export function useAdminDashboard() {
       updates: Record<string, string | number | boolean | Record<string, string>>,
     ) => {
       setSavingConfig(true)
-      const { error } = await supabase
-        .from('platform_config')
-        .update(updates)
-        .eq('key', key)
-
-      if (error) {
-        addToast('Sync Error', error.message, 'error')
-      } else {
-        addToast('State Persisted', `${key} re-routed successfully.`, 'success')
-        fetchAdminData()
+      try {
+        // In Firestore, we use the document ID if the key is the ID, 
+        // or we query for the doc with that key field.
+        // Assuming 'key' is the doc ID for simplicity or querying:
+        const q = query(collection(db, 'platform_config'), where('key', '==', key))
+        const snap = await getDocs(q)
+        if (!snap.empty) {
+          await updateDoc(doc(db, 'platform_config', snap.docs[0].id), updates)
+          addToast('State Persisted', `${key} re-routed successfully.`, 'success')
+          fetchAdminData()
+        }
+      } catch (err: any) {
+        addToast('Sync Error', err.message, 'error')
       }
       setSavingConfig(false)
     },
-    [supabase, addToast, fetchAdminData],
+    [addToast, fetchAdminData],
   )
 
   /**

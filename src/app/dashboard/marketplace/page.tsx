@@ -29,8 +29,7 @@ export default function MarketplacePage() {
     setShowWalkthrough,
     selectedListing,
     setSelectedListing,
-    fetchListings,
-    supabase
+    fetchListings
   } = useMarketplace()
 
   return (
@@ -111,7 +110,6 @@ export default function MarketplacePage() {
                 <ListingCard 
                   key={item.id} 
                   item={item} 
-                  supabase={supabase} 
                   onClick={setSelectedListing} 
                 />
               ))}
@@ -133,7 +131,6 @@ export default function MarketplacePage() {
       {selectedListing && (
         <ItemDetailModal 
           listing={selectedListing} 
-          supabase={supabase}
           onClose={() => setSelectedListing(null)} 
         />
       )}

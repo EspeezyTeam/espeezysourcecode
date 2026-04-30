@@ -1,89 +1,68 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
+import { getAdminDb } from '@/lib/firebase-admin'
 import { revalidatePath } from 'next/cache'
 
 export async function distributeTaskScore(taskId: string, assignees: string[]) {
-  // Validate Security Credentials
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  try {
+    const adminDb = getAdminDb()
+    if (!adminDb) throw new Error('Service Unavailable')
+    const taskRef = adminDb.collection('tasks').doc(taskId)
+    const taskSnap = await taskRef.get()
 
-  if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Critical Error: Admin Node keys fundamentally missing. Score scaling aborted.')
-  }
-
-  // Construct absolute admin client bypassing RLS restrictions
-  const adminClient = createClient(supabaseUrl, supabaseServiceKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
+    if (!taskSnap.exists) throw new Error('Task node validation failed')
+    
+    const taskData = taskSnap.data()!
+    if (taskData.score_awarded) {
+      return { success: false, reason: 'Already awarded' }
     }
-  })
 
-  // 1. Verify mathematically if score_awarded is false
-  const { data: taskStr, error: taskErr } = await adminClient
-    .from('tasks')
-    .select('score_awarded')
-    .eq('id', taskId)
-    .single()
-
-  if (taskErr || !taskStr) throw new Error('Task node validation failed')
-  if (taskStr.score_awarded) {
-    return { success: false, reason: 'Already awarded' }
-  }
-
-  // 2. Safely traverse all assignees and globally inject +15 Validity Score internally
-  if (assignees && assignees.length > 0) {
-    for (const userId of assignees) {
-      // Manual internal update because Supabase RPC might not exist
-      const { data: profile } = await adminClient.from('profiles').select('total_score').eq('id', userId).single()
-      if (profile) {
-         await adminClient.from('profiles').update({ total_score: (profile.total_score || 0) + 15 }).eq('id', userId)
+    // Safely traverse all assignees and globally inject +15 Validity Score internally
+    if (assignees && assignees.length > 0) {
+      for (const userId of assignees) {
+        const profileRef = adminDb.collection('profiles').doc(userId)
+        const profileSnap = await profileRef.get()
+        if (profileSnap.exists) {
+           const currentScore = profileSnap.data()?.total_score || 0
+           await profileRef.update({ total_score: currentScore + 15 })
+        }
       }
     }
+
+    // Close the physical lock permanently
+    await taskRef.update({ score_awarded: true })
+
+    revalidatePath('/dashboard', 'layout')
+    return { success: true }
+  } catch (err: any) {
+    console.error('Score distribution failed:', err.message)
+    throw new Error(`Critical Error: ${err.message}`)
   }
-
-  // 3. Close the physical lock permanently
-  await adminClient.from('tasks').update({ score_awarded: true }).eq('id', taskId)
-
-  revalidatePath('/dashboard', 'layout')
-  return { success: true }
 }
 
 export async function updateUserGameStats(userId: string, xpEarned: number, won: boolean) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  try {
+    const adminDb = getAdminDb()
+    if (!adminDb) throw new Error('Service Unavailable')
+    const statsRef = adminDb.collection('user_game_stats').doc(userId)
+    const statsSnap = await statsRef.get()
 
-  if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Admin Node keys missing.')
-  }
+    const currentStats = statsSnap.exists ? statsSnap.data()! : { total_xp: 0, wins: 0, games_played: 0 }
 
-  const adminClient = createClient(supabaseUrl, supabaseServiceKey)
-
-  // 1. Fetch current stats
-  const { data: stats } = await adminClient
-    .from('user_game_stats')
-    .select('total_xp, wins, games_played')
-    .eq('user_id', userId)
-    .single()
-
-  const currentStats = stats || { total_xp: 0, wins: 0, games_played: 0 }
-
-  // 2. Update stats
-  const { data, error } = await adminClient
-    .from('user_game_stats')
-    .upsert({
+    const newData = {
       user_id: userId,
-      total_xp: currentStats.total_xp + xpEarned,
-      wins: currentStats.wins + (won ? 1 : 0),
-      games_played: currentStats.games_played + 1,
+      total_xp: (currentStats.total_xp || 0) + xpEarned,
+      wins: (currentStats.wins || 0) + (won ? 1 : 0),
+      games_played: (currentStats.games_played || 0) + 1,
       updated_at: new Date().toISOString()
-    })
-    .select()
-    .single()
+    }
 
-  if (error) throw new Error(error.message)
-  
-  revalidatePath('/dashboard/chillout', 'page')
-  return { success: true, stats: data }
+    await statsRef.set(newData, { merge: true })
+
+    revalidatePath('/dashboard/chillout', 'page')
+    return { success: true, stats: newData }
+  } catch (err: any) {
+    console.error('Stats update failed:', err.message)
+    throw new Error(`Admin Node Error: ${err.message}`)
+  }
 }

@@ -1,103 +1,124 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient, createAdminClient, createReadClient } from '@/utils/supabase/server'
+import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin'
 
 export const dynamic = 'force-dynamic'
 
 // GET /api/hustle/tasks — list tasks (with filters)
 export async function GET(req: NextRequest) {
-  // Auth check via primary
-  const authClient = await createServerSupabaseClient()
-  const { data: { user } } = await authClient.auth.getUser().catch(() => ({ data: { user: null } }))
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  try {
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const adminAuth = getAdminAuth()
+    const adminDb = getAdminDb()
+    if (!adminAuth || !adminDb) {
+      return NextResponse.json({ error: 'Service Unavailable (Build)' }, { status: 503 })
+    }
 
-  const { searchParams } = new URL(req.url)
-  const status = searchParams.get('status') ?? 'open'
-  const mine = searchParams.get('mine') === '1'
-  const category = searchParams.get('category')
-  const cursor = searchParams.get('cursor')
-  const PAGE_SIZE = 20
+    const token = authHeader.split('Bearer ')[1]
+    const decodedToken = await adminAuth.verifyIdToken(token)
+    const uid = decodedToken.uid
 
-  // READ: route to nearest regional replica
-  const svc = createReadClient()
+    const { searchParams } = new URL(req.url)
+    const status = searchParams.get('status') ?? 'open'
+    const mine = searchParams.get('mine') === '1'
+    const category = searchParams.get('category')
+    const cursor = searchParams.get('cursor')
+    const PAGE_SIZE = 20
 
-  let query = svc
-    .from('hustle_tasks')
-    .select(`id, title, description, category, payout_cents, platform_fee_cents, net_payout_cents, status, deadline, connection_only, created_at,
-      poster:poster_id(id, full_name, username, avatar_url),
-      assignee:assignee_id(id, full_name, username, avatar_url)`)
-    .order('created_at', { ascending: false })
-    .limit(PAGE_SIZE + 1)
+    let query: any = adminDb.collection('hustle_tasks')
+      .orderBy('created_at', 'desc')
+      .limit(PAGE_SIZE + 1)
 
-  if (mine) {
-    query = query.or(`poster_id.eq.${user.id},assignee_id.eq.${user.id}`)
-  } else {
-    query = query.eq('status', status)
-    if (status === 'open') query = query.neq('poster_id', user.id)
+    if (mine) {
+      query = query.where('poster_id', '==', uid)
+    } else {
+      query = query.where('status', '==', status)
+    }
+
+    if (category) query = query.where('category', '==', category)
+    if (cursor) query = query.startAfter(cursor)
+
+    const snap = await query.get()
+    const tasks = await Promise.all(snap.docs.map(async (doc: any) => {
+      const data = doc.data()
+      // Manual join for poster/assignee
+      const [posterSnap, assigneeSnap] = await Promise.all([
+        adminDb.collection('profiles').doc(data.poster_id).get(),
+        data.assignee_id ? adminDb.collection('profiles').doc(data.assignee_id).get() : Promise.resolve(null)
+      ])
+      
+      return {
+        id: doc.id,
+        ...data,
+        created_at: data.created_at,
+        poster: posterSnap.exists ? { id: posterSnap.id, ...posterSnap.data() } : null,
+        assignee: assigneeSnap?.exists ? { id: assigneeSnap.id, ...assigneeSnap.data() } : null
+      }
+    }))
+
+    const hasMore = tasks.length > PAGE_SIZE
+    const finalTasks = hasMore ? tasks.slice(0, PAGE_SIZE) : tasks
+    const nextCursor = hasMore ? finalTasks[finalTasks.length - 1].created_at : null
+
+    return NextResponse.json({ tasks: finalTasks, nextCursor })
+  } catch (err: any) {
+    console.error('Hustle Tasks Fetch Error:', err.message)
+    return NextResponse.json({ error: err.message }, { status: 500 })
   }
-
-  if (category) query = query.eq('category', category)
-  if (cursor) query = query.lt('created_at', cursor)
-
-  const { data, error } = await query
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  const hasMore = (data?.length ?? 0) > PAGE_SIZE
-  const tasks = hasMore ? data!.slice(0, PAGE_SIZE) : (data ?? [])
-  const nextCursor = hasMore ? tasks[tasks.length - 1].created_at : null
-
-  return NextResponse.json({ tasks, nextCursor })
 }
 
 // POST /api/hustle/tasks — create a task
 export async function POST(req: NextRequest) {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }))
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  try {
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const token = authHeader.split('Bearer ')[1]
+    const adminAuth = getAdminAuth()
+    const adminDb = getAdminDb()
+    if (!adminAuth || !adminDb) return NextResponse.json({ error: 'Service Unavailable' }, { status: 503 })
+    const decodedToken = await adminAuth.verifyIdToken(token)
+    const uid = decodedToken.uid
 
-  const svc = await createAdminClient()
+    const profileSnap = await adminDb.collection('profiles').doc(uid).get()
+    if (profileSnap.data()?.account_status !== 'active' && profileSnap.data()?.account_status !== undefined) {
+      return NextResponse.json({ error: 'Account suspended' }, { status: 403 })
+    }
 
-  const { data: profile } = await svc.from('profiles').select('account_status').eq('id', user.id).single()
-  if (profile?.account_status !== 'active') {
-    return NextResponse.json({ error: 'Account suspended' }, { status: 403 })
-  }
+    const { title, description, category, payout_cents, deadline, connection_only } = await req.json()
 
-  const { title, description, category, payout_cents, deadline, connection_only } = await req.json()
+    if (!title?.trim() || !description?.trim()) {
+      return NextResponse.json({ error: 'Title and description are required' }, { status: 400 })
+    }
+    if (!payout_cents || payout_cents < 100 || payout_cents > 500000) {
+      return NextResponse.json({ error: 'Payout must be between $1 and $5,000' }, { status: 400 })
+    }
 
-  if (!title?.trim() || !description?.trim()) {
-    return NextResponse.json({ error: 'Title and description are required' }, { status: 400 })
-  }
-  if (!payout_cents || payout_cents < 100 || payout_cents > 500000) {
-    return NextResponse.json({ error: 'Payout must be between $1 and $5,000' }, { status: 400 })
-  }
+    const VALID_CATEGORIES = ['design', 'writing', 'coding', 'tutoring', 'research', 'admin', 'marketing', 'video', 'photography', 'other']
+    if (!VALID_CATEGORIES.includes(category)) {
+      return NextResponse.json({ error: 'Invalid category' }, { status: 400 })
+    }
 
-  const VALID_CATEGORIES = ['design', 'writing', 'coding', 'tutoring', 'research', 'admin', 'marketing', 'video', 'photography', 'other']
-  if (!VALID_CATEGORIES.includes(category)) {
-    return NextResponse.json({ error: 'Invalid category' }, { status: 400 })
-  }
-
-  const { data: task, error } = await svc
-    .from('hustle_tasks')
-    .insert({
-      poster_id: user.id,
+    const taskRef = await adminDb.collection('hustle_tasks').add({
+      poster_id: uid,
       title: title.trim(),
       description: description.trim(),
       category,
       payout_cents: Math.round(payout_cents),
       deadline: deadline ? new Date(deadline).toISOString() : null,
       connection_only: !!connection_only,
+      status: 'open',
+      created_at: new Date().toISOString()
     })
-    .select()
-    .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    const taskSnap = await taskRef.get()
 
-  try {
-    await svc.rpc('log_activity', {
-      p_user_id: user.id, p_action: 'task_posted', p_resource_type: 'hustle_task',
-      p_resource_id: task.id, p_metadata: { title, payout_cents },
-    })
-  } catch { /* non-critical log */ }
-
-  return NextResponse.json({ task }, { status: 201 })
+    return NextResponse.json({ task: { id: taskSnap.id, ...taskSnap.data() } }, { status: 201 })
+  } catch (err: any) {
+    console.error('Task creation error:', err.message)
+    return NextResponse.json({ error: err.message }, { status: 500 })
+  }
 }

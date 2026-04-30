@@ -2,7 +2,18 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { db } from '@/lib/firebase'
+import { 
+  doc, 
+  getDoc, 
+  setDoc, 
+  collection, 
+  query, 
+  where, 
+  getDocs,
+  documentId,
+  addDoc
+} from 'firebase/firestore'
 import { 
   Sparkles, 
   Gamepad2, 
@@ -62,7 +73,6 @@ export default function ChillOutHub() {
   const { onlineUsers } = usePresence()
   const { addToast } = useNotifications()
   const { withLoading } = useSmartLoading()
-  const supabase = useMemo(() => createBrowserSupabaseClient(), [])
 
   const [step, setStep] = useState(1) // 1: Topic, 2: Config, 3: Preview, 4: Players
   const [selectedTopic, setSelectedTopic] = useState<typeof TOPICS[0] | null>(null)
@@ -83,37 +93,36 @@ export default function ChillOutHub() {
     async function fetchData() {
       if (!profile?.id) return
 
-      // Fetch User Stats
-      const { data: stats } = await supabase
-        .from('user_game_stats')
-        .select('*')
-        .eq('user_id', profile.id)
-        .maybeSingle()
-      
-      if (!stats) {
-        const { data: newStats } = await supabase
-          .from('user_game_stats')
-          .insert({ user_id: profile.id, total_xp: 0, level: 1 })
-          .select()
-          .single()
-        setUserStats(newStats)
-      } else {
-        setUserStats(stats)
-      }
-
-      // Fetch Online Profiles
-      if (onlineUsers.size > 0) {
-        const ids = Array.from(onlineUsers)
-        const { data } = await supabase
-          .from('profiles')
-          .select('id, full_name, avatar_url')
-          .in('id', ids)
+      try {
+        // Fetch User Stats
+        const statsRef = doc(db, 'user_game_stats', profile.id)
+        const statsSnap = await getDoc(statsRef)
         
-        if (data) setOnlineProfiles(data.filter(p => p.id !== profile?.id))
+        if (!statsSnap.exists()) {
+          const newStats = { user_id: profile.id, total_xp: 0, level: 1 }
+          await setDoc(statsRef, newStats)
+          setUserStats(newStats)
+        } else {
+          setUserStats(statsSnap.data())
+        }
+
+        // Fetch Online Profiles
+        if (onlineUsers.size > 0) {
+          const ids = Array.from(onlineUsers)
+          const profilesSnap = await getDocs(query(
+            collection(db, 'profiles'),
+            where(documentId(), 'in', ids.slice(0, 10)) // Firestore limit
+          ))
+          
+          const profilesData = profilesSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+          setOnlineProfiles(profilesData.filter((p: any) => p.id !== profile?.id))
+        }
+      } catch (err: any) {
+        console.error('Fetch data error:', err.message)
       }
     }
     fetchData()
-  }, [onlineUsers, supabase, profile?.id])
+  }, [onlineUsers, profile?.id])
 
   // 2. AI Synthesis
   const handleTopicSelect = (topic: typeof TOPICS[0]) => {
@@ -163,23 +172,25 @@ export default function ChillOutHub() {
     const roomId = `skirmish_${Date.now()}`
     
     await withLoading(async () => {
-      // 1. Create Game Session in DB (Archive)
-      await supabase.from('game_sessions').insert({
+      // 1. Create Game Session in Firestore
+      await addDoc(collection(db, 'game_sessions'), {
         room_id: roomId,
         creator_id: profile?.id,
         topic_id: selectedTopic?.id,
         difficulty,
-        mode: gameMode
+        mode: gameMode,
+        created_at: new Date().toISOString()
       })
 
       // 2. Send Notifications
       for (const playerId of selectedPlayers) {
-        await supabase.from('notifications').insert({
+        await addDoc(collection(db, 'notifications'), {
           user_id: playerId,
           type: 'skirmish_invite',
           title: 'SKIRMISH DETECTED',
           message: `${profile?.full_name || 'A Peer'} challenged you to ${difficulty} ${selectedTopic?.name}.`,
-          metadata: { room_id: roomId, topic_id: selectedTopic?.id, mode: gameMode, questions }
+          metadata: { room_id: roomId, topic_id: selectedTopic?.id, mode: gameMode, questions },
+          created_at: new Date().toISOString()
         })
       }
       

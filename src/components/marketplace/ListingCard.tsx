@@ -4,15 +4,13 @@ import React from 'react'
 import Image from 'next/image'
 import { Plus, MapPin } from 'lucide-react'
 import { Listing } from '@/types/marketplace'
-import { SupabaseClient } from '@supabase/supabase-js'
 
 interface ListingCardProps {
   item: Listing
-  supabase: SupabaseClient
   onClick: (item: Listing) => void
 }
 
-export function ListingCard({ item, supabase, onClick }: ListingCardProps) {
+export function ListingCard({ item, onClick }: ListingCardProps) {
   return (
     <div 
       className="listing-card"
@@ -32,7 +30,7 @@ export function ListingCard({ item, supabase, onClick }: ListingCardProps) {
       <div style={{ height: '220px', background: 'var(--bg-sub)', position: 'relative', overflow: 'hidden' }}>
         {item.images?.[0] ? (
           <Image 
-            src={supabase.storage.from('marketplace').getPublicUrl(item.images[0]).data.publicUrl} 
+            src={item.images[0]} 
             alt={item.title} 
             fill
             className="object-cover transition-transform hover:scale-110 duration-500"

@@ -4,15 +4,13 @@ import React from 'react'
 import Image from 'next/image'
 import { Plus, MapPin, Clock } from 'lucide-react'
 import { Listing } from '@/types/marketplace'
-import { SupabaseClient } from '@supabase/supabase-js'
 
 interface ItemDetailModalProps {
   listing: Listing
-  supabase: SupabaseClient
   onClose: () => void
 }
 
-export function ItemDetailModal({ listing, supabase, onClose }: ItemDetailModalProps) {
+export function ItemDetailModal({ listing, onClose }: ItemDetailModalProps) {
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 12000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(12px)' }} onClick={onClose} />
@@ -36,7 +34,7 @@ export function ItemDetailModal({ listing, supabase, onClose }: ItemDetailModalP
           <div style={{ background: 'var(--bg-sub)', position: 'relative' }}>
             {listing.images?.[0] ? (
               <Image 
-                src={supabase.storage.from('marketplace').getPublicUrl(listing.images[0]).data.publicUrl} 
+                src={listing.images[0]} 
                 alt={listing.title} 
                 fill
                 className="object-cover"

@@ -3,7 +3,23 @@ import { createRoomContext } from "@liveblocks/react";
 import { Task } from "@/types/database";
 
 const client = createClient({
-  authEndpoint: "/api/liveblocks-auth",
+  authEndpoint: async (room) => {
+    // Dynamic import to avoid SSR issues if auth is not available
+    const { auth } = await import("./lib/firebase");
+    const user = auth.currentUser;
+    const token = user ? await user.getIdToken() : "";
+
+    const response = await fetch("/api/liveblocks-auth", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ room }),
+    });
+
+    return await response.json();
+  },
 });
 
 // Presence is used to track ephemeral state like cursors or dragging

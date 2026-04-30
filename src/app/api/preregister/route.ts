@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { adminDb } from '@/lib/firebase-admin'
+import { getAdminDb } from '@/lib/firebase-admin'
 import { createHash } from 'crypto'
 
 export const dynamic = 'force-dynamic'
@@ -11,6 +11,8 @@ function isValidEmail(email: unknown): email is string {
 
 export async function POST(req: Request) {
   try {
+    const adminDb = getAdminDb()
+    if (!adminDb) return NextResponse.json({ error: 'Service Unavailable' }, { status: 503 })
     const body = await req.json().catch(() => null)
     if (!body || typeof body !== 'object' || Array.isArray(body)) {
       return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 })
@@ -67,6 +69,8 @@ export async function POST(req: Request) {
 
 export async function GET() {
   try {
+    const adminDb = getAdminDb()
+    if (!adminDb) return NextResponse.json({ count: 0 })
     const countSnap = await adminDb.collection('pre_registrations').count().get()
     return NextResponse.json({ count: countSnap.data().count })
   } catch (err) {

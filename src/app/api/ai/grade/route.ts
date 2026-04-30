@@ -1,31 +1,27 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/utils/supabase/server'
-import { checkBotId } from 'botid/server'
+import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin'
 
 const OPENAI_API_URL = process.env.OPENAI_API_BASE || 'https://api.openai.com/v1'
 const OPENAI_API_KEY = process.env.AI_GATEWAY_API_KEY || process.env.OPENAI_API_KEY
 
 export async function POST(req: Request) {
-  // BotID Verification
-  const verification = await checkBotId()
-  if (verification.isBot) {
-    return new NextResponse(JSON.stringify({ 
-      error: 'Automated access detected. Only scholars may enter the Skirmish archives.' 
-    }), { status: 403 })
-  }
-
   if (!OPENAI_API_KEY) {
     return new NextResponse(JSON.stringify({ error: 'AI Gateway is not configured.' }), { status: 500 })
   }
 
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) {
-    return new NextResponse(JSON.stringify({ error: 'Authentication required.' }), { status: 401 })
-  }
-
   try {
+    // Get session token from headers
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new NextResponse(JSON.stringify({ error: 'Authentication required.' }), { status: 401 })
+    }
+    const token = authHeader.split('Bearer ')[1]
+    const adminAuth = getAdminAuth()
+    const adminDb = getAdminDb()
+    if (!adminAuth || !adminDb) return NextResponse.json({ error: 'Service Unavailable' }, { status: 503 })
+    const decodedToken = await adminAuth.verifyIdToken(token)
+    const uid = decodedToken.uid
+
     const { question, correctAnswer, userResponse } = await req.json()
     
     const prompt = `Act as the Master Librarian of the Espeezy Archives. 
@@ -71,8 +67,8 @@ Respond ONLY with a JSON object:
     const result = JSON.parse(data?.choices?.[0]?.message?.content)
 
     return new NextResponse(JSON.stringify(result), { status: 200 })
-  } catch (err: unknown) {
-    console.error('Grading Error:', err instanceof Error ? err.message : err)
+  } catch (err: any) {
+    console.error('Grading Error:', err.message)
     return new NextResponse(JSON.stringify({ error: 'Evaluation failed.' }), { status: 500 })
   }
 }

@@ -2,41 +2,28 @@
 
 import { useState, useEffect } from 'react'
 import { X, Zap } from 'lucide-react'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { db } from '@/lib/firebase'
+import { doc, onSnapshot, DocumentData } from 'firebase/firestore'
 
 export default function PromoBanner() {
   const [isClient] = useState(() => typeof window !== 'undefined')
-  const [config, setConfig] = useState<Record<string, unknown>>({})
+  const [config, setConfig] = useState<DocumentData | null>(null)
   const [isVisible, setIsVisible] = useState(() => {
     if (typeof localStorage === 'undefined') return true
     return !localStorage.getItem('gf_promo_dismissed_v2')
   })
 
-  const supabase = createBrowserSupabaseClient()
-
   useEffect(() => {
     if (!isClient) return;
-    const fetchConfig = async () => {
-      const { data } = await supabase
-        .from('platform_config')
-        .select('*')
-        .eq('key', 'main_banner')
-        .single()
 
-      if (data) setConfig(data)
-    }
-    fetchConfig()
+    const unsub = onSnapshot(doc(db, 'platform_config', 'main_banner'), (snap) => {
+      if (snap.exists()) {
+        setConfig(snap.data())
+      }
+    })
 
-    // 2. Real-time Subscription
-    const channel = supabase
-      .channel('banner_sync')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'platform_config', filter: 'key=eq.main_banner' }, (payload) => {
-        setConfig(payload.new)
-      })
-      .subscribe()
-
-    return () => { supabase.removeChannel(channel) }
-  }, [isClient, supabase])
+    return () => unsub()
+  }, [isClient])
 
   const handleDismiss = () => {
     setIsVisible(false)

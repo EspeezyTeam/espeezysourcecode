@@ -1,7 +1,16 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { db, auth } from '@/lib/firebase'
+import { 
+  doc, 
+  getDoc, 
+  updateDoc, 
+  setDoc, 
+  deleteDoc, 
+  addDoc, 
+  collection 
+} from 'firebase/firestore'
 import { useNotifications } from '@/components/NotificationProvider'
 import type { Notification } from '@/types/ui'
 import { Bell, UserPlus, Check, X, Shield, Clock, Inbox, Mail, MessageSquare } from 'lucide-react'
@@ -13,7 +22,6 @@ export default function NotificationsPage() {
   const { notifications, markAsRead, markAllAsRead, addToast, refreshNotifications } = useNotifications()
   const [loading, setLoading] = useState(false)
   const [view, setView] = useState<'inbox' | 'settings'>('inbox')
-  const supabase = createBrowserSupabaseClient()
 
   // Settings state
   const [settings, setSettings] = useState({
@@ -24,21 +32,32 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     async function fetchSettings() {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = auth.currentUser
       if (!user) return
-      const { data } = await supabase.from('profiles').select('email_notifications, push_notifications, marketing_emails').eq('id', user.id).single()
-      if (data) setSettings(data)
+      const snap = await getDoc(doc(db, 'profiles', user.uid))
+      if (snap.exists()) {
+        const data = snap.data()
+        setSettings({
+          email_notifications: data.email_notifications ?? true,
+          push_notifications: data.push_notifications ?? true,
+          marketing_emails: data.marketing_emails ?? false
+        })
+      }
     }
     fetchSettings()
-  }, [supabase])
+  }, [])
 
   const updateSetting = async (key: keyof typeof settings, value: boolean) => {
     const newSettings = { ...settings, [key]: value }
     setSettings(newSettings)
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = auth.currentUser
     if (!user) return
-    await supabase.from('profiles').update({ [key]: value }).eq('id', user.id)
-    addToast('Success', 'Preferences updated', 'success')
+    try {
+      await updateDoc(doc(db, 'profiles', user.uid), { [key]: value })
+      addToast('Success', 'Preferences updated', 'success')
+    } catch (err: any) {
+      console.error('Update settings error:', err.message)
+    }
   }
 
   const handleAcceptConnection = async (notification: InboxNotification) => {
@@ -46,30 +65,35 @@ export default function NotificationsPage() {
     const { sender_id } = notification.metadata || {}
     if (!sender_id) return
 
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = auth.currentUser
     if (!user) return
 
-    // 1. Update Connection to 'connected'
-    const { error: connError } = await supabase
-      .from('user_connections')
-      .upsert({ user_id: user.id, target_id: sender_id, status: 'connected' })
+    try {
+      // 1. Update Connection to 'connected'
+      const connId = [user.uid, sender_id].sort().join('_')
+      await setDoc(doc(db, 'user_connections', connId), {
+        user_id: user.uid,
+        target_id: sender_id,
+        status: 'connected',
+        created_at: new Date().toISOString()
+      })
 
-    if (connError) {
-      addToast('Error', 'Failed to accept connection', 'error')
-    } else {
       // 2. Mark notification as read
       await markAsRead(notification.id)
       
       // 3. Send reciprocal notification to sender
-      await supabase.from('notifications').insert({
+      await addDoc(collection(db, 'notifications'), {
         user_id: sender_id,
         type: 'connection_accepted',
         title: 'Connection Accepted',
         message: 'Your connection request was accepted. You can now chat real-time.',
-        metadata: { acceptor_id: user.id }
+        metadata: { acceptor_id: user.uid },
+        created_at: new Date().toISOString()
       })
 
       addToast('Success', 'Connection established!', 'success')
+    } catch (err: any) {
+      addToast('Error', 'Failed to accept connection', 'error')
     }
     setLoading(false)
   }
@@ -77,13 +101,10 @@ export default function NotificationsPage() {
   const handleDeclineConnection = async (notification: InboxNotification) => {
     const senderId = notification.metadata?.sender_id
     if (senderId) {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = auth.currentUser
       if (user) {
-        await supabase
-          .from('user_connections')
-          .delete()
-          .eq('user_id', senderId)
-          .eq('target_id', user.id)
+        const connId = [user.uid, senderId].sort().join('_')
+        await deleteDoc(doc(db, 'user_connections', connId))
       }
     }
     await markAsRead(notification.id)
@@ -108,7 +129,7 @@ export default function NotificationsPage() {
            onClick={() => setView('inbox')}
            style={{ background: 'none', border: 'none', padding: '0.4rem 0.8rem', borderRadius: '6px', cursor: 'pointer', fontWeight: 800, fontSize: '0.85rem', color: view === 'inbox' ? 'var(--brand)' : 'var(--text-sub)', borderBottom: view === 'inbox' ? '2px solid var(--brand)' : 'none' }}
          >
-           Inbox ({notifications.filter(n => !n.read).length})
+           Inbox ({notifications.filter((n: Notification) => !n.read).length})
          </button>
          <button 
            onClick={() => setView('settings')}
@@ -134,7 +155,7 @@ export default function NotificationsPage() {
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
                  <button onClick={markAllAsRead} style={{ background: 'none', border: 'none', fontSize: '0.75rem', color: 'var(--brand)', cursor: 'pointer', fontWeight: 700 }}>Mark all as read</button>
               </div>
-              {notifications.map(n => (
+              {notifications.map((n: InboxNotification) => (
                 <div 
                   key={n.id}
                   onClick={() => !n.read && markAsRead(n.id)}

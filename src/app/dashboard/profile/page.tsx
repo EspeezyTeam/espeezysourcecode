@@ -1,7 +1,16 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { db } from '@/lib/firebase'
+import { 
+  collection, 
+  query, 
+  where, 
+  limit, 
+  getDocs, 
+  doc, 
+  updateDoc 
+} from 'firebase/firestore'
 import Image from 'next/image'
 import { User, Activity, Award, Mail, Calendar, ShieldCheck, Terminal, Fingerprint, Edit2, Check, X, Zap, Handshake, CheckCircle2, Globe, Target } from 'lucide-react'
 import { useProfile } from '@/context/ProfileContext'
@@ -9,7 +18,6 @@ import { getFlagComponent } from '@/utils/geo'
 
 export default function ProfilePage() {
    const { profile, loading, refreshProfile } = useProfile()
-   const supabase = createBrowserSupabaseClient()
    const [isEditingBio, setIsEditingBio] = useState(false)
    const [bioText, setBioText] = useState('')
    const [isSaving, setIsSaving] = useState(false)
@@ -18,16 +26,31 @@ export default function ProfilePage() {
    useEffect(() => {
      async function fetchAchievements() {
        if (!profile?.id) return
-       const { data: artifacts } = await supabase.from('artifacts').select('*').eq('user_id', profile.id).limit(3)
-       const { data: commits } = await supabase.from('commits').select('*').eq('user_id', profile.id).limit(3)
-       const combined = [
-         ...(artifacts || []).map(a => ({ type: 'artifact', ...a })),
-         ...(commits || []).map(c => ({ type: 'commit', ...c }))
-       ]
-       setAchievements(combined)
+       
+       try {
+         const artifactsSnap = await getDocs(query(
+           collection(db, 'artifacts'),
+           where('user_id', '==', profile.id),
+           limit(3)
+         ))
+         
+         const commitsSnap = await getDocs(query(
+           collection(db, 'commits'),
+           where('user_id', '==', profile.id),
+           limit(3)
+         ))
+
+         const combined = [
+           ...artifactsSnap.docs.map((d: any) => ({ type: 'artifact', id: d.id, ...d.data() })),
+           ...commitsSnap.docs.map((d: any) => ({ type: 'commit', id: d.id, ...d.data() }))
+         ]
+         setAchievements(combined)
+       } catch (err: any) {
+         console.error('Fetch achievements error:', err.message)
+       }
      }
      fetchAchievements()
-   }, [supabase, profile?.id])
+   }, [profile?.id])
 
    const score = profile?.total_score || 0
    const levelData = useMemo(() => {
@@ -42,7 +65,6 @@ export default function ProfilePage() {
 
    useEffect(() => {
       if (profile?.biography) {
-         // eslint-disable-next-line react-hooks/set-state-in-effect
          setBioText(profile.biography)
       }
    }, [profile?.biography])
@@ -50,14 +72,13 @@ export default function ProfilePage() {
    const handleSaveBio = async () => {
       if (!profile) return
       setIsSaving(true)
-      const { error } = await supabase
-         .from('profiles')
-         .update({ biography: bioText })
-         .eq('id', profile.id)
       
-      if (!error) {
-         await refreshProfile()
-         setIsEditingBio(false)
+      try {
+        await updateDoc(doc(db, 'profiles', profile.id), { biography: bioText })
+        await refreshProfile()
+        setIsEditingBio(false)
+      } catch (err: any) {
+        console.error('Save bio error:', err.message)
       }
       setIsSaving(false)
    }

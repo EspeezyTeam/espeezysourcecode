@@ -61,7 +61,7 @@ export default function AdminDashboard() {
 
         <AdminLaunchCenter
           launchConfig={launchConfig}
-          onConfigChange={(updates) => setLaunchConfig((prev) => ({ ...prev, ...updates }))}
+          onConfigChange={(updates) => setLaunchConfig((prev: any) => ({ ...prev, ...updates }))}
           preregCount={preregCount}
           onSave={saveLaunchConfig}
           saving={savingLaunchConfig}

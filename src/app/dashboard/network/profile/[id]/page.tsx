@@ -2,7 +2,18 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { db, auth } from '@/lib/firebase'
+import { 
+  doc, 
+  getDoc, 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  addDoc, 
+  setDoc,
+  serverTimestamp 
+} from 'firebase/firestore'
 import { 
   X, UserCircle, ShieldCheck, Mail, Target, Award, Hash, 
   GraduationCap, Calendar, UserPlus, Check, MessageSquare, 
@@ -16,63 +27,74 @@ export default function StudentProfilePage() {
   const params = useParams()
   const router = useRouter()
   const studentId = params.id as string
-  const supabase = createBrowserSupabaseClient()
 
-  const [member, setMember] = useState<Profile | null>(null)
-  const [me, setMe] = useState<{ id: string; email?: string | null } | null>(null)
+  const [member, setMember] = useState<any | null>(null)
+  const [me, setMe] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'pending' | 'connected'>('idle')
   const [activeTab, setActiveTab] = useState<'info' | 'accomplishments'>('info')
   const { withLoading, showConfirmation } = useSmartLoading()
 
-  const formatRelativeTime = (date: string | null) => {
+  const formatRelativeTime = (date: any) => {
     if (!date) return 'Unknown'
     const now = new Date()
-    const diff = now.getTime() - new Date(date).getTime()
+    const targetDate = date.seconds ? new Date(date.seconds * 1000) : new Date(date)
+    const diff = now.getTime() - targetDate.getTime()
     const mins = Math.floor(diff / 60000)
     if (mins < 1) return 'Just now'
     if (mins < 60) return `${mins}m ago`
     const hours = Math.floor(mins / 60)
     if (hours < 24) return `${hours}h ago`
-    return new Date(date).toLocaleDateString()
+    return targetDate.toLocaleDateString()
   }
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/immutability
     fetchProfileData()
   }, [studentId])
 
   const fetchProfileData = async () => {
     setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    setMe(user)
+    const currentUser = auth.currentUser
+    setMe(currentUser)
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('*, groups(*)')
-      .eq('id', studentId)
-      .single()
+    try {
+      const profileSnap = await getDoc(doc(db, 'profiles', studentId))
+      if (profileSnap.exists()) {
+        const profileData = profileSnap.data()
+        
+        // Fetch group details if group_id exists
+        let groupData = null
+        if (profileData.group_id) {
+          const groupSnap = await getDoc(doc(db, 'groups', profileData.group_id))
+          groupData = groupSnap.exists() ? groupSnap.data() : null
+        }
 
-    if (profile) {
-      setMember(profile as import('@/types/auth').Profile)
-      if (user) {
-        // Check if there is ANY accepted connection or a pending one sent by me
-        const { data: conns } = await supabase
-          .from('user_connections')
-          .select('id, user_id, target_id, status')
-          .or(`and(user_id.eq.${user.id},target_id.eq.${studentId}),and(user_id.eq.${studentId},target_id.eq.${user.id})`)
+        setMember({ id: profileSnap.id, ...profileData, groups: groupData })
 
-        const connection = conns?.find(c => c.status === 'connected' || c.status === 'accepted')
-        const pendingSentByMe = conns?.find(c => c.user_id === user.id && c.status === 'pending')
+        if (currentUser) {
+          // Check connections
+          const q = query(
+            collection(db, 'user_connections'),
+            where('user_id', 'in', [currentUser.uid, studentId]),
+            where('target_id', 'in', [currentUser.uid, studentId])
+          )
+          const connSnap = await getDocs(q)
+          const conns = connSnap.docs.map(d => d.data())
+          
+          const connection = conns.find((c: any) => c.status === 'connected' || c.status === 'accepted')
+          const pendingSentByMe = conns.find((c: any) => c.user_id === currentUser.uid && c.status === 'pending')
 
-        if (connection) {
-          setConnectionStatus('connected')
-        } else if (pendingSentByMe) {
-          setConnectionStatus('pending')
-        } else {
-          setConnectionStatus('idle')
+          if (connection) {
+            setConnectionStatus('connected')
+          } else if (pendingSentByMe) {
+            setConnectionStatus('pending')
+          } else {
+            setConnectionStatus('idle')
+          }
         }
       }
+    } catch (err: any) {
+      console.error('Profile fetch error:', err.message)
     }
 
     setLoading(false)
@@ -82,32 +104,35 @@ export default function StudentProfilePage() {
     if (!me || !member || connectionStatus !== 'idle') return
 
     await withLoading(async () => {
-      const { error: connError } = await supabase
-        .from('user_connections')
-        .upsert({ 
-          user_id: me.id, 
+      try {
+        const connId = [me.uid, member.id].sort().join('_')
+        await setDoc(doc(db, 'user_connections', connId), { 
+          user_id: me.uid, 
           target_id: member.id, 
-          status: 'pending' 
-        }, { onConflict: 'user_id,target_id' })
+          status: 'pending',
+          created_at: serverTimestamp()
+        })
 
-      if (connError) throw connError
+        await addDoc(collection(db, 'notifications'), {
+          user_id: member.id,
+          type: 'connection_request',
+          title: 'New Connection Request',
+          message: `${me.displayName || me.email} wants to connect with you.`,
+          metadata: { sender_id: me.uid },
+          created_at: serverTimestamp()
+        })
 
-      await supabase.from('notifications').insert({
-        user_id: member.id,
-        type: 'connection_request',
-        title: 'New Connection Request',
-        message: `${(me as any).user_metadata?.full_name || me.email} wants to connect with you.`,
-        metadata: { sender_id: me.id }
-      })
-
-      setConnectionStatus('pending')
-      
-      showConfirmation({
-        title: 'Request Sent',
-        message: `Your connection request has been sent to ${member.full_name?.split(' ')[0]}.`,
-        type: 'success',
-        onConfirm: () => {}
-      })
+        setConnectionStatus('pending')
+        
+        showConfirmation({
+          title: 'Request Sent',
+          message: `Your connection request has been sent to ${member.full_name?.split(' ')[0]}.`,
+          type: 'success',
+          onConfirm: () => {}
+        })
+      } catch (err: any) {
+        throw err
+      }
     }, 'Authenticating Request...')
   }
 
@@ -238,20 +263,20 @@ export default function StudentProfilePage() {
                     </div>
                  </div>
 
-                 {member.stack && (
+                  {member.stack && (
                     <div style={{ marginBottom: '1.5rem' }}>
                        <h4 style={{ fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', color: 'var(--text-sub)', marginBottom: '0.5rem' }}>
                           <Terminal size={14} style={{ verticalAlign: 'middle', marginRight: '4px' }} /> Technical Arsenal
                        </h4>
                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-                          {member.stack.split(',').map((tech, idx) => (
+                          {member.stack.split(',').map((tech: string, idx: number) => (
                              <span key={idx} style={{ padding: '0.3rem 0.6rem', background: 'var(--bg-sub)', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 800, color: 'var(--brand)' }}>
                                 {tech.trim()}
                              </span>
                           ))}
                        </div>
                     </div>
-                 )}
+                  )}
 
                  <div style={{ marginBottom: '1.5rem' }}>
                     <h4 style={{ fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', color: 'var(--text-sub)', marginBottom: '0.5rem' }}>Scholar Identity</h4>

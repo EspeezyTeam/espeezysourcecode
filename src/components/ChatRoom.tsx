@@ -11,7 +11,17 @@ import {
 import { LiveList } from '@liveblocks/client'
 import { Send, User as UserIcon, Smile, Paperclip, MoreVertical, MessageSquare } from 'lucide-react'
 
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { db } from '@/lib/firebase'
+import { 
+  collection, 
+  query, 
+  where, 
+  orderBy, 
+  limit, 
+  getDocs, 
+  addDoc,
+  serverTimestamp 
+} from 'firebase/firestore'
 import { useSmartLoading } from '@/components/GlobalLoadingProvider'
 
 type ChatHistoryMessage = {
@@ -36,35 +46,38 @@ export default function ChatRoom({ currentUser, roomId }: { currentUser: { id: s
   const updateMyPresence = useUpdateMyPresence();
   const others = useOthers();
   const scrollRef = useRef<HTMLDivElement>(null);
-  const supabase = createBrowserSupabaseClient();
   const { withLoading } = useSmartLoading();
 
   const isTyping = others.some((other) => other.presence.isTyping);
 
   const fetchHistory = async () => {
     setLoadingHistory(true);
-    const { data } = await supabase
-      .from('chat_messages')
-      .select('*')
-      .eq('room_id', roomId)
-      .order('created_at', { ascending: true })
-      .limit(50);
-
-    if (data) {
-      setHistory(data.map(m => ({
-        id: m.id,
-        senderId: m.sender_id,
-        senderName: m.metadata?.sender_name || 'Student',
-        text: m.content,
-        timestamp: m.created_at,
-        isHistory: true
-      })));
+    try {
+      const q = query(
+        collection(db, 'chat_messages'),
+        where('room_id', '==', roomId),
+        orderBy('created_at', 'asc'),
+        limit(50)
+      )
+      const snap = await getDocs(q)
+      setHistory(snap.docs.map((d: any) => {
+        const m = d.data()
+        return {
+          id: d.id,
+          senderId: m.sender_id,
+          senderName: m.metadata?.sender_name || 'Student',
+          text: m.content,
+          timestamp: m.created_at || new Date().toISOString(),
+          isHistory: true
+        }
+      }))
+    } catch (err: any) {
+      console.error('Fetch chat history error:', err.message)
     }
     setLoadingHistory(false);
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchHistory();
   }, [roomId]);
 
@@ -94,32 +107,32 @@ export default function ChatRoom({ currentUser, roomId }: { currentUser: { id: s
     setText("");
     updateMyPresence({ isTyping: false });
 
-    // 2. Permanent Archival via Supabase + Notification Trigger for Pop-Ups
+    // 2. Permanent Archival via Firebase + Notification Trigger
     await withLoading(async () => {
       // Find recipient Id from roomId (slug: id1_id2)
       const recipientId = roomId.split('_').find(id => id !== currentUser.id);
 
-      const [msgResult, notifyResult] = await Promise.all([
-        supabase
-          .from('chat_messages')
-          .insert({
+      try {
+        await Promise.all([
+          addDoc(collection(db, 'chat_messages'), {
             room_id: roomId,
             sender_id: currentUser.id,
             content: messageContent,
-            metadata: { sender_name: currentUser.name }
+            metadata: { sender_name: currentUser.name },
+            created_at: new Date().toISOString()
           }),
-        recipientId ? supabase
-          .from('notifications')
-          .insert({
+          recipientId ? addDoc(collection(db, 'notifications'), {
             user_id: recipientId,
             type: 'new_message',
             title: currentUser.name,
             message: messageContent.length > 60 ? messageContent.substring(0, 57) + '...' : messageContent,
-            link: `/dashboard/network/chat/${currentUser.id}`
-          }) : Promise.resolve({ error: null })
-      ]);
-
-      if (msgResult.error) console.error("Message backup failed:", msgResult.error);
+            link: `/dashboard/network/chat/${currentUser.id}`,
+            created_at: new Date().toISOString()
+          }) : Promise.resolve()
+        ]);
+      } catch (err: any) {
+        console.error("Message backup failed:", err.message);
+      }
     }, 'Synchronizing Archive...')
   };
 

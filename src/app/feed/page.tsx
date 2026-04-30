@@ -8,7 +8,15 @@ import {
   MessageCircle, Send, Image as ImageIcon, X, ChevronDown, Loader2,
   Globe, Users, Lock, MoreHorizontal, Trash2, Pencil
 } from 'lucide-react'
-import { createBrowserSupabaseClient } from '../../utils/supabase/client'
+import { db } from '@/lib/firebase'
+import { 
+  collection, 
+  query, 
+  where, 
+  onSnapshot, 
+  orderBy, 
+  limit 
+} from 'firebase/firestore'
 import { useProfile } from '../../context/ProfileContext'
 
 type Reaction = 'like' | 'love' | 'fire' | 'clap' | 'insightful' | 'celebrate'
@@ -69,7 +77,6 @@ export default function FeedPage() {
   const [showReactionPicker, setShowReactionPicker] = useState<string | null>(null)
   const observerRef = useRef<IntersectionObserver | null>(null)
   const sentinelRef = useRef<HTMLDivElement>(null)
-  const supabase = createBrowserSupabaseClient()
 
   const loadPosts = useCallback(async (cur?: string) => {
     if (cur) setLoadingMore(true); else setLoading(true)
@@ -103,17 +110,24 @@ export default function FeedPage() {
 
   // Realtime subscription
   useEffect(() => {
-    const channel = supabase
-      .channel('feed-realtime')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, payload => {
-        // Prepend new public posts from others
-        if (payload.new.author_id !== profile?.id && payload.new.visibility === 'public') {
-          loadPosts()  // reload to get full author data
+    const q = query(
+      collection(db, 'posts'),
+      where('visibility', '==', 'public'),
+      orderBy('created_at', 'desc'),
+      limit(1)
+    )
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === 'added') {
+          const data = change.doc.data()
+          if (data.author_id !== profile?.id) {
+            loadPosts()
+          }
         }
       })
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [profile?.id, supabase, loadPosts])
+    })
+    return () => unsubscribe()
+  }, [profile?.id, loadPosts])
 
   async function submitPost() {
     if (!composerText.trim() || posting) return

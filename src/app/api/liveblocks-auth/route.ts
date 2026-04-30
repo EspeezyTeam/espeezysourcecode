@@ -1,30 +1,36 @@
 import { Liveblocks } from "@liveblocks/node";
-import { createServerSupabaseClient } from "@/utils/supabase/server";
+import { getAdminAuth, getAdminDb } from "@/lib/firebase-admin";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
 const secret = process.env.LIVEBLOCKS_SECRET_KEY;
 
-const liveblocks = new Liveblocks({
-  secret: secret || "sk_placeholder", // Fallback to prevent build-time crash
-});
-
 export async function POST(request: Request) {
-  try {
-    const supabase = await createServerSupabaseClient();
-    const { data: { user } } = await supabase.auth.getUser();
+  const secret = process.env.LIVEBLOCKS_SECRET_KEY;
+  if (!secret) return new NextResponse("Liveblocks secret not configured", { status: 500 });
 
-    if (!user) {
-      return new NextResponse("Unauthorized", { status: 403 });
+  const liveblocks = new Liveblocks({ secret });
+  try {
+    const authHeader = request.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new NextResponse("Unauthorized: Missing token", { status: 401 });
     }
 
+    const token = authHeader.split("Bearer ")[1];
+    
+    const adminAuth = getAdminAuth()
+    const adminDb = getAdminDb()
+    if (!adminAuth || !adminDb) {
+      return new NextResponse("Service unavailable (build time)", { status: 503 });
+    }
+
+    const decodedToken = await adminAuth.verifyIdToken(token);
+    const userId = decodedToken.uid;
+
     // Get group members/profile to confirm access
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('full_name, avatar_url, group_id')
-      .eq('id', user.id)
-      .single();
+    const profileDoc = await adminDb.collection('profiles').doc(userId).get();
+    const profile = profileDoc.data();
 
     const { room } = await request.json();
 
@@ -34,9 +40,9 @@ export async function POST(request: Request) {
     }
 
     // Prepare session
-    const session = liveblocks.prepareSession(user.id, {
+    const session = liveblocks.prepareSession(userId, {
       userInfo: {
-        name: profile?.full_name || user.email || 'Anonymous',
+        name: profile?.full_name || decodedToken.email || 'Anonymous',
         avatar: profile?.avatar_url || '',
       },
     });

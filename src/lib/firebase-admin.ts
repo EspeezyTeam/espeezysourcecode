@@ -1,29 +1,37 @@
-import { initializeApp, getApps, cert, type ServiceAccount } from 'firebase-admin/app'
-import { getFirestore } from 'firebase-admin/firestore'
-import { readFileSync } from 'fs'
-import { resolve } from 'path'
+import admin from 'firebase-admin'
 
-function getAdminApp() {
-  if (getApps().length > 0) return getApps()[0]
+function initAdmin() {
+  if (admin.apps.length) return true;
+  
+  const key = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+  if (!key) return false;
 
-  // Option 1: Full JSON string in env var (for production / Vercel / Firebase Hosting)
-  const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_KEY
-  if (serviceAccountJson && serviceAccountJson.startsWith('{')) {
-    const serviceAccount: ServiceAccount = JSON.parse(serviceAccountJson)
-    return initializeApp({ credential: cert(serviceAccount) })
+  try {
+    const serviceAccount = JSON.parse(Buffer.from(key, 'base64').toString());
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      databaseURL: 'https://espeezylearning.firebaseio.com'
+    });
+    return true;
+  } catch (error) {
+    console.error('Firebase Admin initialization error:', error);
+    return false;
   }
-
-  // Option 2: Path to a local JSON key file (for local development)
-  const keyFilePath = process.env.GOOGLE_APPLICATION_CREDENTIALS
-  if (keyFilePath) {
-    const raw = readFileSync(resolve(keyFilePath), 'utf-8')
-    const serviceAccount: ServiceAccount = JSON.parse(raw)
-    return initializeApp({ credential: cert(serviceAccount) })
-  }
-
-  // Option 3: Default credentials (GCP environments)
-  return initializeApp()
 }
 
-const adminApp = getAdminApp()
-export const adminDb = getFirestore(adminApp)
+export const getAdminDb = () => {
+  if (!initAdmin()) return null
+  return admin.firestore()
+}
+
+export const getAdminAuth = () => {
+  if (!initAdmin()) return null
+  return admin.auth()
+}
+
+export const getAdminStorage = () => {
+  if (!initAdmin()) return null
+  return admin.storage()
+}
+
+export default admin

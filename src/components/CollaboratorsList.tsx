@@ -1,7 +1,19 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { db, auth } from '@/lib/firebase'
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  setDoc, 
+  doc, 
+  addDoc, 
+  limit, 
+  orderBy, 
+  or 
+} from 'firebase/firestore'
 import { Profile } from '@/types/database'
 import { Users, UserPlus, Check, ExternalLink, Shield, Sparkles } from 'lucide-react'
 import { getFlagComponent } from '@/utils/geo'
@@ -17,74 +29,95 @@ export default function CollaboratorsList({ currentGroupId, onViewProfile }: Col
   const [suggested, setSuggested] = useState<Profile[]>([])
   const [connections, setConnections] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
-  const supabase = createBrowserSupabaseClient()
 
   const fetchCollaborators = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    // Use either the passed prop or the profile's group_id
+    const user = auth.currentUser
     const groupId = currentGroupId
     
-    if (!user || !groupId) {
-      return
-    }
+    if (!user || !groupId) return
 
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('group_id', groupId)
-      .neq('id', user.id)
-
-    if (data) {
-      setCollaborators(data as Profile[])
+    try {
+      const q = query(
+        collection(db, 'profiles'),
+        where('group_id', '==', groupId)
+      )
+      const snap = await getDocs(q)
+      const data = snap.docs
+        .map(d => ({ id: d.id, ...d.data() } as unknown as Profile))
+        .filter(p => p.id !== user.uid)
+      
+      setCollaborators(data)
+    } catch (err: any) {
+      console.error('Fetch collaborators error:', err.message)
     }
-  }, [supabase, currentGroupId])
+  }, [currentGroupId])
 
   const fetchSuggested = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = auth.currentUser
     if (!user) return
 
-    // Fetch users NOT in the current group and NOT already connected
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .neq('id', user.id)
-      .not('group_id', 'eq', currentGroupId || '00000000-0000-0000-0000-000000000000')
-      .limit(6)
+    try {
+      const q = query(
+        collection(db, 'profiles'),
+        limit(20) // Get a batch and filter client-side for complex "not in group"
+      )
+      const snap = await getDocs(q)
+      const data = snap.docs
+        .map(d => ({ id: d.id, ...d.data() } as unknown as Profile))
+        .filter(p => p.id !== user.uid && p.group_id !== currentGroupId)
+        .slice(0, 6)
 
-    if (data) setSuggested(data as Profile[])
-  }, [supabase, currentGroupId])
+      setSuggested(data)
+    } catch (err: any) {
+      console.error('Fetch suggested error:', err.message)
+    }
+  }, [currentGroupId])
 
   const fetchConnections = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = auth.currentUser
     if (!user) return
 
-    // 1. Fetch connected IDs for fast lookup
-    const { data: connData } = await supabase
-      .from('user_connections')
-      .select('user_id, target_id')
-      .or(`user_id.eq.${user.id},target_id.eq.${user.id}`)
-      .eq('status', 'connected')
-
-    if (connData) {
-      const ids = connData.map((c: { user_id: string; target_id: string }) => c.user_id === user.id ? c.target_id : c.user_id)
+    try {
+      // 1. Fetch connected IDs (split 'or' into two queries for broader compatibility)
+      const q1 = query(
+        collection(db, 'user_connections'),
+        where('user_id', '==', user.uid),
+        where('status', '==', 'connected')
+      )
+      const q2 = query(
+        collection(db, 'user_connections'),
+        where('target_id', '==', user.uid),
+        where('status', '==', 'connected')
+      )
+      const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)])
+      
+      const ids: string[] = [
+        ...snap1.docs.map(d => d.data().target_id),
+        ...snap2.docs.map(d => d.data().user_id)
+      ]
       const uniqueIds = Array.from(new Set(ids))
       setConnections(new Set(uniqueIds))
 
-      // 2. Fetch full profiles for these connections (Global Discovery unblocked by RLS)
+      // 2. Fetch full profiles
       if (uniqueIds.length > 0) {
-        const { data: profiles, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .in('id', uniqueIds)
-        
-        if (profiles) {
-          setPersonalNetwork(profiles as Profile[])
+        const profiles: Profile[] = []
+        // Firestore 'in' query has a limit of 10-30 IDs usually, 
+        // for simplicity we'll fetch them individually or in chunks if needed.
+        // For a small list, individual gets are okay.
+        for (const id of uniqueIds.slice(0, 10)) {
+          const pSnap = await getDocs(query(collection(db, 'profiles'), where('id', '==', id)))
+          if (!pSnap.empty) {
+            profiles.push({ id: pSnap.docs[0].id, ...pSnap.docs[0].data() } as unknown as Profile)
+          }
         }
+        setPersonalNetwork(profiles)
       } else {
         setPersonalNetwork([])
       }
+    } catch (err: any) {
+      console.error('Fetch connections error:', err.message)
     }
-  }, [supabase])
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -97,44 +130,36 @@ export default function CollaboratorsList({ currentGroupId, onViewProfile }: Col
       ])
       if (active) setLoading(false)
     }
-
     void load()
-    
-    // Subscribe to connection updates
-    const channel = supabase.channel('network_updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_connections' }, () => {
-        void fetchConnections()
-      })
-      .subscribe()
-
-    return () => { 
-      active = false
-      supabase.removeChannel(channel)
-    }
+    return () => { active = false }
   }, [currentGroupId, fetchCollaborators, fetchConnections, fetchSuggested])
 
   const handleConnect = async (targetId: string) => {
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = auth.currentUser
     if (!user) return
 
-    // Create a connection request/approval flow
-    // For immediate addition in this simplified UI flow, we upsert to connected
-    const { error } = await supabase
-      .from('user_connections')
-      .upsert({ user_id: user.id, target_id: targetId, status: 'connected' })
+    try {
+      const connId = [user.uid, targetId].sort().join('_')
+      await setDoc(doc(db, 'user_connections', connId), {
+        user_id: user.uid,
+        target_id: targetId,
+        status: 'connected',
+        created_at: new Date().toISOString()
+      })
 
-    if (!error) {
       setConnections(prev => new Set([...Array.from(prev), targetId]))
-      void fetchConnections() // Refresh network list
+      void fetchConnections()
       
-      // Send notification to target
-      await supabase.from('notifications').insert({
+      await addDoc(collection(db, 'notifications'), {
         user_id: targetId,
         type: 'connection_request',
         title: 'Network Expansion',
-        message: `${user.user_metadata?.full_name || 'A scholar'} has established a synchronization link with you.`,
-        metadata: { sender_id: user.id }
+        message: `${user.displayName || 'A scholar'} has established a synchronization link with you.`,
+        metadata: { sender_id: user.uid },
+        created_at: new Date().toISOString()
       })
+    } catch (err: any) {
+      console.error('Connect error:', err.message)
     }
   }
 

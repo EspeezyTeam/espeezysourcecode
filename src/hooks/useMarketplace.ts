@@ -1,7 +1,15 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { db } from '@/lib/firebase'
+import { 
+  collection, 
+  getDocs, 
+  query, 
+  orderBy, 
+  where,
+  documentId
+} from 'firebase/firestore'
 import { useSmartLoading } from '@/components/GlobalLoadingProvider'
 import { useNotifications } from '@/components/NotificationProvider'
 import { Listing, MarketplaceCategory } from '@/types/marketplace'
@@ -15,56 +23,52 @@ export function useMarketplace() {
   const [showWalkthrough, setShowWalkthrough] = useState(false)
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null)
   
-  const supabase = useMemo(() => createBrowserSupabaseClient(), [])
   const { withLoading } = useSmartLoading()
   const { addToast } = useNotifications()
 
   const fetchListings = useCallback(async () => {
     setLoading(true)
     
-    const { data: listingsData, error: listingsError } = await supabase
-      .from('marketplace_listings')
-      .select('*')
-      .order('created_at', { ascending: false })
-    
-    if (listingsError) {
-      console.error('Fetch error:', listingsError.message)
-      setListings([])
-      setLoading(false)
-      return
-    }
+    try {
+      const listingsSnap = await getDocs(query(
+        collection(db, 'marketplace_listings'),
+        orderBy('created_at', 'desc')
+      ))
+      
+      const listingsData = listingsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any))
+      const ownerIds = Array.from(new Set(listingsData.map(l => l.owner_id).filter(Boolean)))
+      
+      if (ownerIds.length > 0) {
+        // Firestore 'in' queries are limited to 10-30 items depending on version, 
+        // but for now we'll assume it fits or handle chunks if needed.
+        const profilesSnap = await getDocs(query(
+          collection(db, 'profiles'),
+          where(documentId(), 'in', ownerIds.slice(0, 30))
+        ))
 
-    const ownerIds = Array.from(new Set(listingsData?.map(l => l.owner_id) || []))
-    
-    if (ownerIds.length > 0) {
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, full_name, avatar_url, role')
-        .in('id', ownerIds)
+        const profileMap = profilesSnap.docs.reduce((acc, p) => {
+          acc[p.id] = p.data()
+          return acc
+        }, {} as Record<string, any>)
 
-      if (profilesError) {
-        console.error('Profiles fetch error:', profilesError.message)
+        const merged = listingsData.map(l => ({
+          ...l,
+          profiles: profileMap[l.owner_id]
+        }))
+
+        setListings(merged)
+        localStorage.setItem('gf_marketplace_cache', JSON.stringify(merged))
+      } else {
+        setListings([])
+        localStorage.setItem('gf_marketplace_cache', JSON.stringify([]))
       }
-
-      const profileMap = (profilesData || []).reduce((acc, p) => {
-        acc[p.id] = p
-        return acc
-      }, {} as Record<string, any>)
-
-      const merged = listingsData.map(l => ({
-        ...l,
-        profiles: profileMap[l.owner_id]
-      }))
-
-      setListings(merged)
-      localStorage.setItem('gf_marketplace_cache', JSON.stringify(merged))
-    } else {
+    } catch (err: any) {
+      console.error('Fetch error:', err.message)
       setListings([])
-      localStorage.setItem('gf_marketplace_cache', JSON.stringify([]))
+    } finally {
+      setLoading(false)
     }
-    
-    setLoading(false)
-  }, [supabase])
+  }, [])
 
   useEffect(() => {
     const hasSeen = localStorage.getItem('gf_marketplace_onboarding')
@@ -110,7 +114,6 @@ export function useMarketplace() {
     setShowWalkthrough,
     selectedListing,
     setSelectedListing,
-    fetchListings,
-    supabase
+    fetchListings
   }
 }

@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
-import type { User } from '@supabase/supabase-js'
+import { TaskModalProps } from '@/types/ui'
+import { Profile } from '@/types/auth'
 import { TaskStatus, Artifact, TaskCategory } from '@/types/database'
 import { X, Trash2, ExternalLink, ThumbsUp, FileUp, Link as LinkIcon, Check } from 'lucide-react'
 import { logActivity } from '@/utils/logging'
@@ -21,9 +21,21 @@ const CATEGORIES: TaskCategory[] = [
   'DevOps', 
   'Ethics & Legal'
 ]
-
-import { TaskModalProps } from '@/types/ui'
-import { Profile } from '@/types/auth'
+import { db, auth, storage } from '@/lib/firebase'
+import { 
+  collection, 
+  query, 
+  where, 
+  onSnapshot, 
+  doc, 
+  getDoc, 
+  updateDoc, 
+  deleteDoc, 
+  addDoc,
+  setDoc,
+  orderBy
+} from 'firebase/firestore'
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 
 export default function TaskModal({ 
   task, 
@@ -51,7 +63,7 @@ export default function TaskModal({
         ? initialDueDate 
         : ''
   )
-  const [currentUser, setCurrentUser] = useState<User | null>(null)
+  const [currentUser, setCurrentUser] = useState<any | null>(null)
   const [members, setMembers] = useState<Profile[]>([])
   
   const [loading, setLoading] = useState(false)
@@ -66,65 +78,34 @@ export default function TaskModal({
   const [newUrl, setNewUrl] = useState('')
   const [uploading, setUploading] = useState(false)
 
-  const supabase = createBrowserSupabaseClient()
-
-  async function fetchMembers() {
-    const { data } = await supabase
-      .from('profiles')
-      .select('id, full_name, avatar_url, email, school_id')
-      .eq('group_id', groupId)
-    if (data) setMembers(data as Profile[])
-  }
-
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => setCurrentUser(user))
-    queueMicrotask(() => {
-      void fetchMembers()
-    })
-  }, [fetchMembers, groupId, supabase.auth])
-
-  async function fetchArtifacts() {
-    if (!task) return
-    const { data } = await supabase
-      .from('artifacts')
-      .select('*')
-      .eq('task_id', task.id)
-      .order('created_at', { ascending: false })
+    setCurrentUser(auth.currentUser)
     
-    if (data) setArtifacts(data as Artifact[])
-    setEvidenceLoading(false)
-  }
-
-  useEffect(() => {
-    if (!isEditMode) return
-
-    queueMicrotask(() => {
-      void fetchArtifacts()
+    // Fetch members real-time
+    const q = query(collection(db, 'profiles'), where('group_id', '==', groupId))
+    const unsub = onSnapshot(q, (snap) => {
+      setMembers(snap.docs.map(d => ({ id: d.id, ...d.data() } as Profile)))
     })
-    const channelAttr = supabase
-      .channel(`task_${task.id}_artifacts`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'artifacts', filter: `task_id=eq.${task.id}` }, () => {
-        void fetchArtifacts()
-      })
-      .subscribe()
 
-    return () => { 
-      supabase.removeChannel(channelAttr)
-    }
-  }, [task?.id])
+    return () => unsub()
+  }, [groupId])
 
   useEffect(() => {
-    const channelMembers = supabase
-      .channel(`task_members_${groupId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `group_id=eq.${groupId}` }, () => {
-        void fetchMembers()
-      })
-      .subscribe()
+    if (!isEditMode || !task) return
 
-    return () => { 
-      supabase.removeChannel(channelMembers)
-    }
-  }, [groupId])
+    const q = query(
+      collection(db, 'artifacts'), 
+      where('task_id', '==', task.id),
+      orderBy('created_at', 'desc')
+    )
+    
+    const unsub = onSnapshot(q, (snap) => {
+      setArtifacts(snap.docs.map(d => ({ id: d.id, ...d.data() } as Artifact)))
+      setEvidenceLoading(false)
+    })
+
+    return () => unsub()
+  }, [task?.id, isEditMode])
 
   const handleSave = async () => {
     if (!title.trim()) {
@@ -232,25 +213,24 @@ export default function TaskModal({
     if (!confirm("Are you absolutely sure you want to permanently delete this task?")) return
 
     setLoading(true)
-    const { error } = await supabase.from('tasks').delete().eq('id', task.id)
-    setLoading(false)
-
-    if (error) {
-      setError(`Failed to delete: ${error.message}`)
-    } else {
+    try {
+      await deleteDoc(doc(db, 'tasks', task.id))
       await onRefresh()
       await onTaskSaved?.()
 
-      // Verifiable Logging
       if (currentUser) {
         logActivity(
-          currentUser.id,
+          currentUser.uid,
           groupId,
           'task_deleted',
           `Deleted task: ${task.title}`
         )
       }
       onClose()
+    } catch (err: any) {
+      setError(`Failed to delete: ${err.message}`)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -262,20 +242,19 @@ export default function TaskModal({
       
     setAssignees(newAssignees)
 
-    if (isEditMode) {
+    if (isEditMode && task) {
        setLoading(true)
-       const { error } = await supabase.from('tasks').update({ assignees: newAssignees }).eq('id', task.id)
-       if (error) {
-          setError(`Failed to update assignment: ${error.message}`)
-          setAssignees(task.assignees || [])
-       } else {
-          onRefresh()
+       try {
+         await updateDoc(doc(db, 'tasks', task.id), { assignees: newAssignees })
+         onRefresh()
+       } catch (err: any) {
+         setError(`Failed to update assignment: ${err.message}`)
+         setAssignees(task.assignees || [])
        }
        setLoading(false)
     }
   }
 
-  // EVIDENCE CRUD INTEGRATION
   const handleUploadEvidence = async () => {
     if (!newUrl || !task) return
     setUploading(true)
@@ -287,33 +266,28 @@ export default function TaskModal({
       return
     }
 
-    const payload = {
-      task_id: task.id,
-      file_url: newUrl,
-      uploaded_by: currentUser.id
-    }
-    
-    // Instant Optimistic Update
-    const optimisticArtifact: Artifact = { id: Math.random().toString(), endorsements_count: 0, created_at: new Date().toISOString(), ...payload }
-    setArtifacts([optimisticArtifact, ...artifacts])
-    setNewUrl('')
+    try {
+      await addDoc(collection(db, 'artifacts'), {
+        task_id: task.id,
+        file_url: newUrl,
+        uploaded_by: currentUser.uid,
+        endorsements_count: 0,
+        created_at: new Date().toISOString()
+      })
 
-    const { error: dbError } = await supabase.from('artifacts').insert([payload])
-
-    if (dbError) {
-      setError(`Failed to attach evidence: ${dbError.message}`)
-      fetchArtifacts() // Revert
-    } else {
-      // Verifiable Logging
       logActivity(
-        currentUser.id,
+        currentUser.uid,
         groupId,
         'artifact_uploaded',
         `Attached a link to task`,
         { task_id: task.id }
       )
+      setNewUrl('')
+    } catch (err: any) {
+      setError(`Failed to attach evidence: ${err.message}`)
+    } finally {
+      setUploading(false)
     }
-    setUploading(false)
   }
 
   const handlePhysicalUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -324,65 +298,47 @@ export default function TaskModal({
        setError(null)
        
        const fileName = `evidence-${task.id}-${Date.now()}-${file.name}`
+       const fileRef = ref(storage, `Espeezy_assets/${fileName}`)
        
-       const { error: uploadError } = await supabase.storage.from('Espeezy_assets').upload(fileName, file)
-       if (uploadError) throw uploadError
+       await uploadBytes(fileRef, file)
+       const publicUrl = await getDownloadURL(fileRef)
        
-       const { data: publicUrlData } = supabase.storage.from('Espeezy_assets').getPublicUrl(fileName)
-       
-       const payload = {
+       await addDoc(collection(db, 'artifacts'), {
          task_id: task.id,
-         file_url: publicUrlData.publicUrl,
-         uploaded_by: currentUser.id
-       }
-       
-       const { error: dbError } = await supabase.from('artifacts').insert([payload])
-       if (dbError) throw dbError
-       
-       fetchArtifacts() // Re-sync network state explicitly
-     } catch (err: unknown) {
-       const message = err instanceof Error ? err.message : typeof err === 'string' ? err : 'Unknown upload error'
-       setError(`File upload failed: ${message}`)
+         file_url: publicUrl,
+         uploaded_by: currentUser.uid,
+         endorsements_count: 0,
+         created_at: new Date().toISOString()
+       })
+     } catch (err: any) {
+       setError(`File upload failed: ${err.message}`)
      } finally {
        setUploading(false)
      }
   }
 
   const handleDeleteArtifact = async (artifactId: string) => {
-    // Instant Optimistic Update
-    const original = [...artifacts]
-    setArtifacts(artifacts.filter(a => a.id !== artifactId))
-    
-    const { error } = await supabase.from('artifacts').delete().eq('id', artifactId)
-    if (error) {
-      setError(`Failed to delete: ${error.message}`)
-      setArtifacts(original)
-    } else {
-      // Verifiable Logging
+    try {
+      await deleteDoc(doc(db, 'artifacts', artifactId))
       if (currentUser) {
         logActivity(
-          currentUser.id,
+          currentUser.uid,
           groupId,
           'artifact_uploaded',
           `Removed an attachment from task`,
           { task_id: task?.id || 'deleted' }
         )
       }
+    } catch (err: any) {
+      setError(`Failed to delete artifact: ${err.message}`)
     }
   }
 
   const handleEndorse = async (artifactId: string, currentCount: number) => {
-    // Instant Optimistic Update
-    setArtifacts(artifacts.map(a => a.id === artifactId ? { ...a, endorsements_count: currentCount + 1 } : a))
-    
-    const { error } = await supabase
-      .from('artifacts')
-      .update({ endorsements_count: currentCount + 1 })
-      .eq('id', artifactId)
-
-    if (error) {
-      fetchArtifacts() // Revert optimism
-      setError(`Failed to endorse: ${error.message}`)
+    try {
+      await updateDoc(doc(db, 'artifacts', artifactId), { endorsements_count: currentCount + 1 })
+    } catch (err: any) {
+      setError(`Failed to endorse: ${err.message}`)
     }
   }
 

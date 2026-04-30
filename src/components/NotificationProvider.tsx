@@ -1,8 +1,20 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react'
-import type { RealtimeChannel } from '@supabase/supabase-js'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { db, auth } from '@/lib/firebase'
+import { 
+  collection, 
+  query, 
+  where, 
+  orderBy, 
+  limit, 
+  onSnapshot, 
+  getDocs, 
+  updateDoc, 
+  doc, 
+  writeBatch,
+  DocumentData
+} from 'firebase/firestore'
 import { X, Info, UserPlus, CheckCircle2, AlertCircle, Timer } from 'lucide-react'
 import { Notification, NotificationContextType, Toast } from '@/types/ui'
 
@@ -17,8 +29,6 @@ export const useNotifications = () => {
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [toasts, setToasts] = useState<Toast[]>([])
-  // Removed unused notificationPermission state
-  const supabase = useMemo(() => createBrowserSupabaseClient(), [])
 
   const addToast = (title: string, message: string, type: string = 'info') => {
     const id = Math.random().toString(36).substr(2, 9)
@@ -29,28 +39,31 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   }
 
   const fetchNotifications = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = auth.currentUser
     if (!user) return
 
-    const { data } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(20)
-
-    if (data) setNotifications(data)
-  }, [supabase])
+    try {
+      const q = query(
+        collection(db, 'notifications'),
+        where('user_id', '==', user.uid),
+        orderBy('created_at', 'desc'),
+        limit(20)
+      )
+      const snap = await getDocs(q)
+      setNotifications(snap.docs.map(d => ({ id: d.id, ...d.data() } as unknown as Notification)))
+    } catch (err: any) {
+      console.error('Error fetching notifications:', err.message)
+    }
+  }, [])
 
   useEffect(() => {
-    // Only request permission if needed; do not attempt to set Notification.permission (read-only)
     if (typeof window !== 'undefined' && 'Notification' in window) {
       if (window.Notification.permission === 'default') {
         window.Notification.requestPermission();
       }
     }
 
-    let channel: RealtimeChannel | null = null;
+    let unsubscribe: (() => void) | null = null;
     let active = true;
 
     const showBrowserAlert = (title: string, message: string) => {
@@ -66,88 +79,84 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       notification.onclick = () => window.focus();
     };
 
-    const setupSubscription = async () => {
-      // Always clean up previous channel before creating a new one
-      if (channel) {
-        supabase.removeChannel(channel);
-        channel = null;
-      }
-      await fetchNotifications();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user && active) {
-        // Use a unique channel name to avoid Supabase callback errors
-        const uniqueId = Math.random().toString(36).slice(2) + Date.now();
-        const channelName = `notifications_${user.id}_${uniqueId}`;
-        const newChannel = supabase
-          .channel(channelName)
-          .on('postgres_changes', {
-            event: '*',
-            schema: 'public',
-            table: 'notifications',
-            filter: `user_id=eq.${user.id}`,
-          }, (payload) => {
-            if (!payload.new) return;
-            const incoming = payload.new as Notification;
-            
-            // Update local state for all events (INSERT, UPDATE) to keep tabs in sync
-            setNotifications(prev => {
-              const exists = prev.some(n => n.id === incoming.id);
-              if (exists) {
-                return prev.map(n => n.id === incoming.id ? incoming : n);
-              }
-              return [incoming, ...prev];
-            });
+    const setupSubscription = () => {
+      const user = auth.currentUser
+      if (!user) return
 
-            // ONLY trigger active alerts/toasts on NEW notifications
-            // This prevents "Clear All" (which triggers multiple UPDATEs) from spamming the user
-            if (payload.eventType === 'INSERT') {
-              addToast(incoming.title, incoming.message, incoming.type);
-              showBrowserAlert(incoming.title, incoming.message);
-            }
-          });
-        await newChannel.subscribe();
-        channel = newChannel;
-      }
-    };
+      const q = query(
+        collection(db, 'notifications'),
+        where('user_id', '==', user.uid),
+        orderBy('created_at', 'desc'),
+        limit(20)
+      )
 
-    setupSubscription();
+      unsubscribe = onSnapshot(q, (snap) => {
+        if (!active) return
+
+        const incoming = snap.docChanges()
+          .filter(change => change.type === 'added')
+          .map(change => ({ id: change.doc.id, ...change.doc.data() } as Notification))
+
+        // Trigger alerts for truly new ones if we already had a baseline
+        if (notifications.length > 0) {
+          incoming.forEach(notif => {
+            addToast(notif.title, notif.message, notif.type)
+            showBrowserAlert(notif.title, notif.message)
+          })
+        }
+
+        setNotifications(snap.docs.map(d => ({ id: d.id, ...d.data() } as unknown as Notification)))
+      })
+    }
+
+    const unsubAuth = auth.onAuthStateChanged((user) => {
+      if (user) {
+        setupSubscription()
+      } else {
+        if (unsubscribe) unsubscribe()
+        setNotifications([])
+      }
+    })
 
     return () => {
-      active = false;
-      if (channel) supabase.removeChannel(channel);
-    };
-  }, [fetchNotifications, supabase]);
+      active = false
+      unsubAuth()
+      if (unsubscribe) unsubscribe()
+    }
+  }, [])
 
   const markAsRead = async (id: string) => {
     const original = notifications.find(n => n.id === id)
     if (!original || original.read) return
 
-    // Optimistic Update
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))
 
     try {
-      const { error } = await supabase.from('notifications').update({ read: true }).eq('id', id)
-      if (error) throw error
-    } catch (err) {
-      console.error('Persistence error (markAsRead):', err)
-      // Rollback
+      await updateDoc(doc(db, 'notifications', id), { read: true })
+    } catch (err: any) {
+      console.error('Persistence error (markAsRead):', err.message)
       setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: false } : n))
       addToast('Check connection', 'We couldn\'t update that just now.', 'error')
     }
   }
 
   const markAllAsRead = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = auth.currentUser
     if (!user) return
 
     const original = [...notifications]
     setNotifications(prev => prev.map(n => ({ ...n, read: true })))
 
     try {
-      const { error } = await supabase.from('notifications').update({ read: true }).eq('user_id', user.id)
-      if (error) throw error
-    } catch (err) {
-      console.error('Persistence error (markAllAsRead):', err)
+      const q = query(collection(db, 'notifications'), where('user_id', '==', user.uid), where('read', '==', false))
+      const snap = await getDocs(q)
+      if (!snap.empty) {
+        const batch = writeBatch(db)
+        snap.docs.forEach(d => batch.update(d.ref, { read: true }))
+        await batch.commit()
+      }
+    } catch (err: any) {
+      console.error('Persistence error (markAllAsRead):', err.message)
       setNotifications(original)
       addToast('Check connection', 'We couldn\'t clear your notifications.', 'error')
     }

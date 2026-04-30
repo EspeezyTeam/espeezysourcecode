@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { auth } from '@/lib/firebase'
+import { updatePassword } from 'firebase/auth'
 import { useRouter } from 'next/navigation'
 import { ShieldCheck, Lock, Activity, ArrowRight } from 'lucide-react'
 import TransientError from '@/components/TransientError'
@@ -13,7 +14,6 @@ export default function ResetPasswordPage() {
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const supabase = createBrowserSupabaseClient()
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -30,15 +30,21 @@ export default function ResetPasswordPage() {
     setError(null)
 
     try {
-      const { error } = await supabase.auth.updateUser({ password })
-      if (error) {
-        setError(error.message)
-      } else {
-        setSuccess(true)
-        setTimeout(() => router.push('/login'), 3000)
+      const user = auth.currentUser
+      if (!user) {
+        setError('No active session found. Please request a new reset link.')
+        return
       }
-    } catch (err: unknown) {
-      setError((err instanceof Error ? err.message : null) || 'An unexpected error occurred.')
+
+      await updatePassword(user, password)
+      setSuccess(true)
+      setTimeout(() => router.push('/login'), 3000)
+    } catch (err: any) {
+      if (err.code === 'auth/requires-recent-login') {
+        setError('Security Protocol: Please sign out and sign back in to reset your password.')
+      } else {
+        setError(err.message || 'An unexpected error occurred.')
+      }
     } finally {
       setLoading(false)
     }

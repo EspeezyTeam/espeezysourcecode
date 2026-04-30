@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from '@/utils/supabase/server'
+import { getAuthUser, getUserProfile } from '@/utils/auth-server'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import DashboardHome from '@/components/DashboardHome'
@@ -6,16 +6,11 @@ import DashboardHome from '@/components/DashboardHome'
 export const dynamic = 'force-dynamic'
 
 export default async function DashboardPage() {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getAuthUser()
   
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
+  const profile: any = await getUserProfile(user.uid)
 
   if (!profile?.group_id) {
     return (

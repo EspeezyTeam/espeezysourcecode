@@ -2,7 +2,21 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import Image from 'next/image'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { db, auth, storage } from '@/lib/firebase'
+import { 
+  collection, 
+  query, 
+  where, 
+  onSnapshot, 
+  orderBy, 
+  limit, 
+  addDoc, 
+  updateDoc, 
+  doc, 
+  getDocs,
+  serverTimestamp 
+} from 'firebase/firestore'
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { 
   Send, MessageSquare, X, Paperclip, Clock,
   Trash2, Shield, LayoutGrid,
@@ -444,7 +458,6 @@ export default function TeamChat({ groupId, user }: TeamChatProps) {
   const router = useRouter()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const { isOnline } = useConnectivity()
-  const supabase = createBrowserSupabaseClient()
   const { onlineUsers, typingUsers, setTypingStatus } = usePresence()
 
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
@@ -462,17 +475,20 @@ export default function TeamChat({ groupId, user }: TeamChatProps) {
 
   // Real-time Subscription
   useEffect(() => {
-    const channel = supabase
-      .channel(`chat:${groupId}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'messages',
-        filter: `group_id=eq.${groupId}`
-      }, (payload) => {
-        if (payload.eventType === 'INSERT') {
-          const incoming = payload.new as ChatMessage
+    const q = query(
+      collection(db, 'messages'),
+      where('group_id', '==', groupId),
+      orderBy('created_at', 'asc'),
+      limit(50)
+    )
 
+    const unsub = onSnapshot(q, (snap) => {
+      const incomingMessages = snap.docs.map(d => ({ id: d.id, ...d.data() } as ChatMessage))
+      
+      // Handle notifications for new messages
+      snap.docChanges().forEach(change => {
+        if (change.type === 'added') {
+          const incoming = change.doc.data() as ChatMessage
           if (incoming.user_id !== user.id && (!isOpen || document.hidden)) {
             if ('Notification' in window && Notification.permission === 'granted') {
               new Notification('New Team Message', {
@@ -481,74 +497,26 @@ export default function TeamChat({ groupId, user }: TeamChatProps) {
               })
             }
           }
-
-          setMessages((prev) => {
-            if (prev.some((m) => m.id === incoming.id)) return prev
-            return [...prev.filter((m) => !m.pending || m.content !== incoming.content), incoming]
-              .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-              .slice(-50)
-          })
-          setTimeout(() => scrollToBottom('smooth'), 100)
-        } else if (payload.eventType === 'UPDATE') {
-          setMessages((prev) => prev.map((m) => (m.id === payload.new.id ? { ...m, ...payload.new } : m)))
         }
       })
-      .subscribe()
 
-    return () => {
-      supabase.removeChannel(channel)
-    }
+      setMessages(incomingMessages)
+      setLoading(false)
+      setTimeout(() => scrollToBottom('smooth'), 100)
+    })
+
+    return () => unsub()
   }, [groupId, isOpen, user.id])
 
-  const fetchMessages = useCallback(async () => {
-    const { data } = await supabase
-      .from('messages')
-      .select('*, profiles(full_name, avatar_url, role)')
-      .eq('group_id', groupId)
-      .order('created_at', { ascending: true })
-      .limit(50) // Strict 50 message limit
-
-    if (data) setMessages(data as ChatMessage[])
-    setLoading(false)
-    setTimeout(() => scrollToBottom('auto'), 50)
-  }, [supabase, groupId])
-
   useEffect(() => {
     if (!isOpen) return
 
-    let active = true
-    const load = async () => {
-      await fetchMessages()
-      if (!active) return
-    }
+    const q = query(collection(db, 'profiles'), where('group_id', '==', groupId))
+    const unsub = onSnapshot(q, (snap) => {
+      setGroupMembers(snap.docs.map(d => ({ id: d.id, ...d.data() } as Profile)))
+    })
 
-    void load()
-    return () => {
-      active = false
-    }
-  }, [isOpen, fetchMessages])
-
-  useEffect(() => {
-    if (messages.length > 0 && isOpen) scrollToBottom('smooth')
-  }, [messages, isOpen])
-
-  useEffect(() => {
-    if (!isOpen) return
-
-    let mounted = true
-    const loadMembers = async () => {
-      const { data } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('group_id', groupId)
-
-      if (mounted && data) setGroupMembers(data as Profile[])
-    }
-
-    loadMembers()
-    return () => {
-      mounted = false
-    }
+    return () => unsub()
   }, [isOpen, groupId])
 
   const handleTyping = (text: string) => {
@@ -568,61 +536,42 @@ export default function TeamChat({ groupId, user }: TeamChatProps) {
     setTypingStatus(false)
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
 
-    const tempId = Math.random().toString(36).substring(7)
-    const optimisticMsg: ChatMessage = {
-       id: tempId,
-       group_id: groupId,
-       user_id: user.id,
-       content,
-       is_deleted: false,
-       created_at: new Date().toISOString(),
-       profiles: { full_name: user.full_name, avatar_url: user.avatar_url, role: user.role },
-       payload,
-       pending: true
-    }
-
-    setMessages(prev => [...prev, optimisticMsg].slice(-50))
     setNewMessage('')
     scrollToBottom('smooth')
 
-    const { data, error } = await supabase
-      .from('messages')
-      .insert({
+    try {
+      const docRef = await addDoc(collection(db, 'messages'), {
         group_id: groupId,
         user_id: user.id,
         content,
-        payload
+        payload,
+        is_deleted: false,
+        created_at: new Date().toISOString(),
+        server_timestamp: serverTimestamp()
       })
-      .select()
-      .single()
 
-    if (error) {
-       setMessages(prev => prev.filter(m => m.id !== tempId))
-    } else if (data) {
-       setMessages(prev => prev.map(m => m.id === tempId ? { ...data, profiles: optimisticMsg.profiles } : m))
-       
-       // Verifiable Logging
-       logActivity(
-         user.id, 
-         groupId, 
-         'message_sent', 
-         `Sent a ${payload?.type || 'text'} message`,
-         { message_id: data.id }
-       )
+      // Verifiable Logging
+      logActivity(
+        user.id, 
+        groupId, 
+        'message_sent', 
+        `Sent a ${payload?.type || 'text'} message`,
+        { message_id: docRef.id }
+      )
+    } catch (err: any) {
+      console.error('Send message error:', err.message)
     }
   }
 
   const handleDeleteMessage = async (msgId: string) => {
      if (!confirm('Are you sure you want to delete this message for everyone?')) return
      
-     const { error } = await supabase
-       .from('messages')
-       .update({ is_deleted: true, content: 'This message was deleted' })
-       .eq('id', msgId)
-     
-     if (error) console.error("Deletion failed", error)
-     else {
-       // Verifiable Logging
+     try {
+       await updateDoc(doc(db, 'messages', msgId), {
+         is_deleted: true,
+         content: 'This message was deleted'
+       })
+       
        logActivity(
          user.id, 
          groupId, 
@@ -630,6 +579,8 @@ export default function TeamChat({ groupId, user }: TeamChatProps) {
          'Deleted a message',
          { message_id: msgId }
        )
+     } catch (err: any) {
+       console.error('Delete message error:', err.message)
      }
   }
 
@@ -638,25 +589,27 @@ export default function TeamChat({ groupId, user }: TeamChatProps) {
      if (!file) return
      
      setUploading(true)
-     const fileName = `${groupId}/chat-${Date.now()}-${file.name}`
-     const { error: uploadError } = await supabase.storage.from('Espeezy_assets').upload(fileName, file)
-     
-     if (uploadError) {
-        setUploading(false)
-        return
-     }
+     try {
+       const fileName = `${groupId}/chat-${Date.now()}-${file.name}`
+       const fileRef = ref(storage, `Espeezy_assets/${fileName}`)
+       
+       await uploadBytes(fileRef, file)
+       const publicUrl = await getDownloadURL(fileRef)
 
-     const { data: publicUrlData } = supabase.storage.from('Espeezy_assets').getPublicUrl(fileName)
-     await handleSendMessage(
-        null,
-        '',
-        {
-          type: file.type.startsWith('image/') ? 'image' : 'file',
-          url: publicUrlData.publicUrl,
-          name: file.name
-        }
-     )
-     setUploading(false)
+       await handleSendMessage(
+          null,
+          '',
+          {
+            type: file.type.startsWith('image/') ? 'image' : 'file',
+            url: publicUrl,
+            name: file.name
+          }
+       )
+     } catch (err: any) {
+       console.error('File upload error:', err.message)
+     } finally {
+       setUploading(false)
+     }
   }
 
   const filteredMessages = useMemo(() => {

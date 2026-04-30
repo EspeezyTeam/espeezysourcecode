@@ -2,7 +2,20 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { db } from '@/lib/firebase'
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  getDoc,
+  doc, 
+  onSnapshot, 
+  orderBy, 
+  limit,
+  getCountFromServer,
+  QueryConstraint
+} from 'firebase/firestore'
 import KanbanBoard from './KanbanBoard'
 import CalendarView from './CalendarView'
 import { LayoutDashboard, Calendar, Activity, Zap, TrendingUp, Users, UserCircle } from 'lucide-react'
@@ -85,7 +98,6 @@ export default function DashboardHome({ groupId }: { groupId: string }) {
       }
     } catch (e) {
       console.warn('Cache hydration failed defensively:', e)
-      // Carry on silently, real data will fetch
     }
   }, [groupId])
 
@@ -93,41 +105,56 @@ export default function DashboardHome({ groupId }: { groupId: string }) {
     setSyncToken(prev => prev + 1)
   }, [])
 
-  const supabase = useMemo(() => createBrowserSupabaseClient(), [])
-
   const fetchGroupDetails = useCallback(async () => {
-    const { data } = await supabase.from('groups').select('*').eq('id', groupId).single()
-    if (data) {
-      setGroup(data)
-      localStorage.setItem(`gf_cache_group_${groupId}`, JSON.stringify(data))
+    try {
+      const snap = await getDoc(doc(db, 'groups', groupId))
+      if (snap.exists()) {
+        const data = { id: snap.id, ...snap.data() } as Group
+        setGroup(data)
+        localStorage.setItem(`gf_cache_group_${groupId}`, JSON.stringify(data))
+      }
+    } catch (err: any) {
+      console.error('Fetch group details error:', err.message)
     }
-  }, [groupId, supabase])
+  }, [groupId])
 
   const fetchMembers = useCallback(async () => {
     if (!groupId) return
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, full_name, avatar_url, last_seen, role')
-      .eq('group_id', groupId)
-
-    if (error) {
-      console.error('Error fetching group members:', error.message)
-      return
+    try {
+      const q = query(
+        collection(db, 'profiles'),
+        where('group_id', '==', groupId)
+      )
+      const snap = await getDocs(q)
+      setMembers(snap.docs.map(d => ({ id: d.id, ...d.data() } as unknown as Profile)))
+    } catch (err: any) {
+      console.error('Error fetching group members:', err.message)
     }
-
-    if (data) setMembers(data as unknown as Profile[])
-  }, [groupId, supabase])
+  }, [groupId])
 
   const fetchPendingRequests = useCallback(async () => {
     if (!groupId || profile?.role !== 'admin') return
-    const { data } = await supabase
-      .from('group_join_requests')
-      .select('*, profiles(id, full_name, avatar_url)')
-      .eq('group_id', groupId)
-      .eq('status', 'pending')
-
-    setPendingRequests(data || [])
-  }, [groupId, profile?.role, supabase])
+    try {
+      const q = query(
+        collection(db, 'group_join_requests'),
+        where('group_id', '==', groupId),
+        where('status', '==', 'pending')
+      )
+      const snap = await getDocs(q)
+      const data = await Promise.all(snap.docs.map(async d => {
+        const req = d.data()
+        const pSnap = await getDoc(doc(db, 'profiles', req.user_id))
+        return {
+          id: d.id,
+          ...req,
+          profiles: pSnap.exists() ? { id: pSnap.id, ...pSnap.data() as any } : null
+        } as JoinRequest
+      }))
+      setPendingRequests(data)
+    } catch (err: any) {
+      console.error('Fetch pending requests error:', err.message)
+    }
+  }, [groupId, profile?.role])
 
   const handleAcceptRequest = async (id: string) => {
     const { acceptJoinRequest } = await import('@/app/dashboard/join/actions')
@@ -152,64 +179,65 @@ export default function DashboardHome({ groupId }: { groupId: string }) {
 
   const fetchPersonalTaskCount = useCallback(async () => {
     if (!profile?.id || !groupId) return
-
-    const { count, error } = await supabase
-      .from('tasks')
-      .select('*', { count: 'exact', head: true })
-      .eq('group_id', groupId)
-      .contains('assignees', [profile.id])
-      .neq('status', 'Done')
-
-    if (error) {
-      console.warn('Silent failure on personal task count:', error.message)
-      return
+    try {
+      const q = query(
+        collection(db, 'tasks'),
+        where('group_id', '==', groupId),
+        where('assignees', 'array-contains', profile.id)
+      )
+      const snap = await getDocs(q)
+      const pendingCount = snap.docs.filter(d => d.data().status !== 'Done').length
+      setPersonalTaskCount(pendingCount)
+    } catch (err: any) {
+      console.warn('Silent failure on personal task count:', err.message)
     }
-
-    if (count !== null) setPersonalTaskCount(count)
-  }, [profile, groupId, supabase])
+  }, [profile, groupId])
 
   const fetchProjectProgress = useCallback(async () => {
     if (!groupId) return
-    const { data: tasks, error } = await supabase
-      .from('tasks')
-      .select('status')
-      .eq('group_id', groupId)
+    try {
+      const q = query(
+        collection(db, 'tasks'),
+        where('group_id', '==', groupId)
+      )
+      const snap = await getDocs(q)
+      const tasks = snap.docs.map(d => d.data())
 
-    if (error || !tasks || tasks.length === 0) {
-      setProjectProgress(0)
-      setProgressLabel('Empty Backlog')
-      setTotalBacklog(0)
-      return
+      if (tasks.length === 0) {
+        setProjectProgress(0)
+        setProgressLabel('Empty Backlog')
+        setTotalBacklog(0)
+        return
+      }
+
+      const pending = tasks.filter((t: any) => t.status !== 'Done').length
+      setTotalBacklog(pending)
+
+      const completed = tasks.filter((t: any) => t.status === 'Done').length
+      const progress = Math.round((completed / tasks.length) * 100)
+      setProjectProgress(progress)
+
+      let label = 'Almost finished'
+      if (progress <= 30) label = 'Just starting'
+      else if (progress <= 50) label = 'Making progress'
+      else if (progress <= 80) label = 'Smoothing things out'
+      
+      setProgressLabel(label)
+      
+      localStorage.setItem(`gf_cache_stats_${groupId}`, JSON.stringify({
+        personal: personalTaskCount,
+        backlog: pending,
+        progress: progress,
+        label: label
+      }))
+    } catch (err: any) {
+      console.error('Fetch project progress error:', err.message)
     }
-
-    const pending = tasks.filter(t => t.status !== 'Done').length
-    setTotalBacklog(pending)
-
-    const completed = tasks.filter(t => t.status === 'Done').length
-    const progress = Math.round((completed / tasks.length) * 100)
-    setProjectProgress(progress)
-
-    // Better logic for labels
-    let label = 'Almost finished'
-    if (progress <= 30) label = 'Just starting'
-    else if (progress <= 50) label = 'Making progress'
-    else if (progress <= 80) label = 'Smoothing things out'
-    
-    setProgressLabel(label)
-    
-    // PERSIST STATS for PERCEPTIVE SPEED
-    localStorage.setItem(`gf_cache_stats_${groupId}`, JSON.stringify({
-      personal: personalTaskCount,
-      backlog: pending,
-      progress: progress,
-      label: label
-    }))
-  }, [groupId, supabase])
+  }, [groupId])
 
   useEffect(() => {
     if (!groupId) return
 
-    // BATCH PARALLEL INITIALIZATION
     const initializeDashboardData = async () => {
       const tasks = [
         fetchGroupDetails(),
@@ -227,31 +255,26 @@ export default function DashboardHome({ groupId }: { groupId: string }) {
 
     void initializeDashboardData()
 
-    const channel = supabase.channel('dashboard_sync')
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'tasks', filter: `group_id=eq.${groupId}` },
-          () => {
-            void fetchPersonalTaskCount()
-            void fetchProjectProgress()
-          }
-        )
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'profiles', filter: `group_id=eq.${groupId}` },
-          () => void fetchMembers()
-        )
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'group_join_requests', filter: `group_id=eq.${groupId}` },
-          () => void fetchPendingRequests()
-        )
-        .subscribe()
+    // Firestore listeners
+    const tasksUnsub = onSnapshot(query(collection(db, 'tasks'), where('group_id', '==', groupId)), () => {
+      void fetchPersonalTaskCount()
+      void fetchProjectProgress()
+    })
 
-      return () => {
-        supabase.removeChannel(channel)
-      }
-  }, [profile?.id, groupId, fetchPersonalTaskCount, fetchProjectProgress, fetchMembers, fetchPendingRequests, supabase])
+    const profilesUnsub = onSnapshot(query(collection(db, 'profiles'), where('group_id', '==', groupId)), () => {
+      void fetchMembers()
+    })
+
+    const requestsUnsub = onSnapshot(query(collection(db, 'group_join_requests'), where('group_id', '==', groupId)), () => {
+      void fetchPendingRequests()
+    })
+
+    return () => {
+      tasksUnsub()
+      profilesUnsub()
+      requestsUnsub()
+    }
+  }, [profile?.id, groupId, fetchPersonalTaskCount, fetchProjectProgress, fetchMembers, fetchPendingRequests])
 
   const renderRoleBadge = (role: string | null) => {
     const r = role?.toUpperCase()

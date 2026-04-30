@@ -55,77 +55,87 @@ function FlagDisplay({ countryCode }: { countryCode?: string }) {
   )
 }
 
+import { db, auth } from '@/lib/firebase'
+import { 
+  doc, 
+  getDoc, 
+  getDocs, 
+  query, 
+  collection, 
+  where, 
+  limit, 
+  setDoc, 
+  addDoc 
+} from 'firebase/firestore'
+
 export default function PublicProfileModal({ member, onClose, isConnected: initialConnected = false, onConnect }: PublicProfileModalProps) {
-  const [me, setMe] = useState<{ id: string; email?: string; user_metadata?: { full_name?: string } } | null>(null)
+  const [me, setMe] = useState<{ id: string; email?: string; full_name?: string } | null>(null)
   const [achievements, setAchievements] = useState<any[]>([])
   const [isConnected, setIsConnected] = useState(initialConnected)
   const [loading, setLoading] = useState(false)
   const [showChat, setShowChat] = useState(false)
-  const supabase = createBrowserSupabaseClient()
 
   useEffect(() => {
     async function checkConnection() {
-      const { data: { user } } = await supabase.auth.getUser()
-      setMe(user)
+      const user = auth.currentUser
       if (!user) return
+      setMe({ id: user.uid, email: user.email || '', full_name: user.displayName || 'Me' })
 
-      const { data } = await supabase
-        .from('user_connections')
-        .select('*')
-        .or(`and(user_id.eq.${user.id},target_id.eq.${member.id}),and(user_id.eq.${member.id},target_id.eq.${user.id})`)
-        .maybeSingle()
-
-      if (data) setIsConnected(true)
+      const connId = [user.uid, member.id].sort().join('_')
+      const snap = await getDoc(doc(db, 'user_connections', connId))
+      if (snap.exists()) setIsConnected(true)
     }
 
     async function fetchAchievements() {
-      const { data: artifacts } = await supabase.from('artifacts').select('*').eq('user_id', member.id).limit(2)
-      const { data: commits } = await supabase.from('commits').select('*').eq('user_id', member.id).limit(2)
-      const combined = [
-        ...(artifacts || []).map(a => ({ type: 'artifact', ...a })),
-        ...(commits || []).map(c => ({ type: 'commit', ...c }))
-      ]
-      setAchievements(combined)
+      try {
+        const artQ = query(collection(db, 'artifacts'), where('user_id', '==', member.id), limit(2))
+        const comQ = query(collection(db, 'commits'), where('user_id', '==', member.id), limit(2))
+        
+        const [artSnap, comSnap] = await Promise.all([getDocs(artQ), getDocs(comQ)])
+        
+        const combined = [
+          ...artSnap.docs.map(d => ({ type: 'artifact', ...d.data(), id: d.id })),
+          ...comSnap.docs.map(d => ({ type: 'commit', ...d.data(), id: d.id }))
+        ]
+        setAchievements(combined)
+      } catch (err: any) {
+        console.error('Achievements error:', err.message)
+      }
     }
 
     checkConnection()
     fetchAchievements()
-  }, [supabase, member.id])
+  }, [member.id])
 
   const handleConnect = async () => {
     setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = auth.currentUser
     if (!user) return
 
-    // 1. Create a pending connection
-    const { error: connError } = await supabase
-      .from('user_connections')
-      .upsert({
-        user_id: user.id,
+    try {
+      // 1. Create a pending connection
+      const connId = [user.uid, member.id].sort().join('_')
+      await setDoc(doc(db, 'user_connections', connId), {
+        user_id: user.uid,
         target_id: member.id,
-        status: 'pending'
+        status: 'pending',
+        created_at: new Date().toISOString()
       })
 
-    if (connError) {
-      console.error('Connection error:', connError)
-      setLoading(false)
-      return
-    }
-
-    // 2. Insert a notification for the target user
-    const { error: notifError } = await supabase
-      .from('notifications')
-      .insert({
+      // 2. Insert a notification for the target user
+      await addDoc(collection(db, 'notifications'), {
         user_id: member.id,
         type: 'connection_request',
         title: 'New Connection Request',
-        message: `${user.user_metadata?.full_name || user.email} wants to connect with you.`,
-        metadata: { sender_id: user.id }
+        message: `${user.displayName || user.email} wants to connect with you.`,
+        metadata: { sender_id: user.uid },
+        created_at: new Date().toISOString()
       })
 
-    if (!notifError) {
       setIsConnected(true)
       if (onConnect) onConnect()
+    } catch (err: any) {
+      console.error('Connection request error:', err.message)
     }
     setLoading(false)
   }
@@ -326,7 +336,7 @@ export default function PublicProfileModal({ member, onClose, isConnected: initi
             <div style={{ marginTop: '2rem', height: '350px', animation: 'fadeIn 0.3s ease' }}>
               <ChatRoom
                 roomId={`chat_${[me?.id, member.id].sort().join('_')}`}
-                currentUser={{ id: me?.id || '', name: me?.user_metadata?.full_name || 'Me' }}
+                currentUser={{ id: me?.id || '', name: me?.full_name || 'Me' }}
               />
             </div>
           )}

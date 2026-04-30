@@ -1,11 +1,11 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { auth } from '@/lib/firebase'
+import { onAuthStateChanged, User } from 'firebase/auth'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
-import type { User } from '@supabase/supabase-js'
 import { ChevronDown, Search, Code, Menu, X, MessageSquarePlus } from 'lucide-react'
 import { NavMenus, NavCategory, NavItem } from '@/types/landing'
 import LanguageSelector from '@/components/LanguageSelector'
@@ -18,21 +18,13 @@ export default function LandingHeader({ navMenus }: LandingHeaderProps) {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [user, setUser] = useState<User | null>(null)
-  const supabase = useMemo(() => createBrowserSupabaseClient(), [])
 
   useEffect(() => {
-    const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      setUser(session?.user ?? null)
-    }
-    checkUser()
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u)
     })
-
-    return () => subscription.unsubscribe()
-  }, [supabase])
+    return () => unsubscribe()
+  }, [])
 
   // Smooth-scroll to a hash anchor; falls back to normal navigation for full paths
   const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {

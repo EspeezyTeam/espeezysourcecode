@@ -2,36 +2,26 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { headers } from 'next/headers'
-import { createServerSupabaseClient } from '@/utils/supabase/server'
+import { headers, cookies } from 'next/headers'
+import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin'
 import { validateEmailRateLimit } from '@/utils/email-rate-limit'
 
 export async function login(formData: FormData) {
-  const supabase = await createServerSupabaseClient()
-
   const honeypot = formData.get('hp_field') as string;
   if (honeypot) {
     redirect(`/login?error=${encodeURIComponent('Security protocol triggered: Automated access denied.')}`)
   }
 
-  const data = {
-    email: formData.get('email') as string,
-    password: formData.get('password') as string,
-  }
-
-  const { error } = await supabase.auth.signInWithPassword(data)
-
-  if (error) {
-    redirect(`/login?error=${encodeURIComponent(error.message)}`)
-  }
-
-  revalidatePath('/', 'layout')
-  redirect('/dashboard')
+  // NOTE: Firebase login is typically handled client-side to get the ID token.
+  // This server action is a placeholder or can be used for session verification.
+  // For now, we redirect to a client-side login flow or assume the client handles it.
+  // If the user is using Firebase UI or similar, this might not be needed.
+  
+  // However, for compatibility with the existing form, we'll suggest client-side login.
+  redirect('/login?error=' + encodeURIComponent('Please sign in using the secure terminal interface.'))
 }
 
 export async function signup(formData: FormData) {
-  const supabase = await createServerSupabaseClient()
-
   const honeypot = formData.get('hp_field') as string;
   if (honeypot) {
     redirect(`/login?error=${encodeURIComponent('Security protocol triggered: Automated access denied.')}`)
@@ -59,21 +49,30 @@ export async function signup(formData: FormData) {
     )
   }
 
-  const { error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: {
-        school_id,
-        legal_accepted: true
-      }
-    }
-  })
+  try {
+    const adminAuth = getAdminAuth()
+    const adminDb = getAdminDb()
+    if (!adminAuth || !adminDb) redirect(`/login?error=${encodeURIComponent('Service Unavailable')}`)
+    
+    // 1. Create user in Firebase Auth
+    const userRecord = await adminAuth.createUser({
+      email,
+      password,
+    })
 
-  if (error) {
-    redirect(`/login?error=${encodeURIComponent(error.message)}`)
+    // 2. Create profile in Firestore
+    await adminDb.collection('profiles').doc(userRecord.uid).set({
+      id: userRecord.uid,
+      email,
+      school_id,
+      legal_accepted: true,
+      total_score: 0,
+      created_at: new Date().toISOString()
+    })
+
+    revalidatePath('/', 'layout')
+    redirect('/dashboard')
+  } catch (err: any) {
+    redirect(`/login?error=${encodeURIComponent(err.message)}`)
   }
-
-  revalidatePath('/', 'layout')
-  redirect('/dashboard')
 }

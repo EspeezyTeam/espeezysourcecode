@@ -3,7 +3,16 @@
 import { useState, useRef, useEffect, type CSSProperties } from 'react'
 import { Bell, Check, Clock, ExternalLink, Inbox } from 'lucide-react'
 import { useNotifications } from './NotificationProvider'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { db, auth } from '@/lib/firebase'
+import { 
+  doc, 
+  updateDoc, 
+  deleteDoc, 
+  addDoc, 
+  collection, 
+  setDoc 
+} from 'firebase/firestore'
+import { Notification } from '@/types/ui'
 
 export default function NotificationBell() {
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications()
@@ -141,7 +150,7 @@ export default function NotificationBell() {
                  <p style={{ fontSize: '0.875rem' }}>No new signals detected.</p>
               </div>
             ) : (
-              notifications.map((notif) => (
+              notifications.map((notif: Notification) => (
                 <div 
                   key={notif.id} 
                   onClick={() => markAsRead(notif.id)}
@@ -173,51 +182,58 @@ export default function NotificationBell() {
                                className="btn-sm btn-primary" 
                                style={{ padding: '0.3rem 0.6rem', fontSize: '0.7rem' }}
                                onClick={async () => {
-                                 const supabase = createBrowserSupabaseClient();
                                  const senderId = notif.metadata?.sender_id;
                                  if (!senderId) return;
 
-                                 const myId = (await supabase.auth.getUser()).data.user?.id;
-                                 const { error: updErr } = await supabase
-                                   .from('user_connections')
-                                   .update({ status: 'connected' })
-                                   .eq('user_id', senderId)
-                                   .eq('target_id', myId);
+                                 const user = auth.currentUser;
+                                 if (!user) return;
+                                 const myId = user.uid;
 
-                                 if (!updErr) {
+                                 const connId = [myId, senderId].sort().join('_')
+                                 try {
+                                   await setDoc(doc(db, 'user_connections', connId), {
+                                     user_id: myId,
+                                     target_id: senderId,
+                                     status: 'connected',
+                                     created_at: new Date().toISOString()
+                                   });
                                    markAsRead(notif.id);
                                    // Notify sender back
-                                   await supabase.from('notifications').insert({
+                                   await addDoc(collection(db, 'notifications'), {
                                      user_id: senderId,
                                      type: 'connection_accepted',
                                      title: 'Request Accepted',
                                      message: `You are now connected.`,
-                                     link: `/dashboard/network/profile/${myId}`
+                                     link: `/dashboard/network/profile/${myId}`,
+                                     created_at: new Date().toISOString()
                                    });
+                                 } catch (err: any) {
+                                   console.error('Accept connection error:', err.message)
                                  }
                                }}
                              >
-                               Accept
+                                Accept
                              </button>
                              <button 
                                className="btn-sm btn-ghost" 
                                style={{ padding: '0.3rem 0.6rem', fontSize: '0.7rem', border: '1px solid var(--border)' }}
                                onClick={async () => {
-                                 const supabase = createBrowserSupabaseClient();
                                  const senderId = notif.metadata?.sender_id;
                                  if (!senderId) return;
-                                 const myId = (await supabase.auth.getUser()).data.user?.id;
+                                 const user = auth.currentUser;
+                                 if (!user) return;
+                                 const myId = user.uid;
 
-                                 const { error } = await supabase
-                                   .from('user_connections')
-                                   .delete()
-                                   .eq('user_id', senderId)
-                                   .eq('target_id', myId);
-
-                                 if (!error) markAsRead(notif.id);
+                                 const connId = [myId, senderId].sort().join('_')
+                                 try {
+                                   await deleteDoc(doc(db, 'user_connections', connId));
+                                   markAsRead(notif.id);
+                                 } catch (err: any) {
+                                   console.error('Decline connection error:', err.message)
+                                 }
                                }}
                              >
-                               Decline
+                                Decline
                              </button>
                              <button 
                                className="btn-sm btn-ghost" 
@@ -245,14 +261,14 @@ export default function NotificationBell() {
                                  if (roomId) window.location.href = `/dashboard/chillout/room/${roomId}`;
                                }}
                              >
-                               Accept & Join
+                                Accept & Join
                              </button>
                              <button 
                                className="btn-sm btn-ghost" 
                                style={{ padding: '0.3rem 0.6rem', fontSize: '0.7rem', border: '1px solid var(--border)' }}
                                onClick={() => markAsRead(notif.id)}
                              >
-                               Decline
+                                Decline
                              </button>
                            </div>
                          )}

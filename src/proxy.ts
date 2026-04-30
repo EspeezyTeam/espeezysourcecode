@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { updateSession } from '@/utils/supabase/middleware'
+// Supabase shim removed during Firebase migration
 
 // ─── DISTRIBUTED RATE LIMITING ────────────────────────────────────────────────
 // Uses Upstash Redis sliding-window when UPSTASH_REDIS_REST_URL is configured
@@ -66,9 +66,9 @@ const CSP = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live https://*.vercel-insights.com",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://othntbcrtmemavfsslrb.supabase.co https://*.githubusercontent.com https://lh3.googleusercontent.com https://images.unsplash.com",
+  "img-src 'self' data: blob: https://*.githubusercontent.com https://lh3.googleusercontent.com https://images.unsplash.com",
   "font-src 'self' data:",
-  "connect-src 'self' https://othntbcrtmemavfsslrb.supabase.co wss://othntbcrtmemavfsslrb.supabase.co https://api.openai.com https://api.stripe.com https://*.vercel-insights.com https://vitals.vercel-insights.com",
+  "connect-src 'self' https://api.openai.com https://api.stripe.com https://*.vercel-insights.com https://vitals.vercel-insights.com https://*.firebaseio.com https://*.googleapis.com",
   "frame-src 'none'",
   "object-src 'none'",
   "base-uri 'self'",
@@ -156,8 +156,8 @@ export default async function middleware(request: NextRequest) {
 
   // ── 5. Protect admin & terminal pages ────────────────────────────────────
   if (pathname.startsWith('/terminal') || pathname.startsWith('/admin')) {
-    const supabaseSession = request.cookies.get('sb-access-token')
-    if (!supabaseSession) {
+    const firebaseSession = request.cookies.get('__session')
+    if (!firebaseSession) {
       return NextResponse.redirect(new URL('/', request.url))
     }
   }
@@ -165,23 +165,7 @@ export default async function middleware(request: NextRequest) {
   // ── 6. Supabase session refresh (fail-open for public availability) ──────
   // If Supabase/session refresh fails, keep public pages online so marketing
   // and business-verification crawlers can still access the site.
-  let response: NextResponse
-  try {
-    response = await updateSession(request)
-  } catch {
-    const isProtected = pathname.startsWith('/dashboard') ||
-      pathname.startsWith('/admin') ||
-      pathname.startsWith('/profile') ||
-      pathname.startsWith('/settings') ||
-      pathname.startsWith('/terminal') ||
-      pathname.startsWith('/id')
-
-    if (isProtected) {
-      return NextResponse.redirect(new URL('/login', request.url))
-    }
-
-    response = NextResponse.next({ request })
-  }
+  let response: NextResponse = NextResponse.next({ request })
 
   // ── 7. Security + performance headers ────────────────────────────────────
   response.headers.set('Content-Security-Policy', CSP)

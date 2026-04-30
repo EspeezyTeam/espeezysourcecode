@@ -1,8 +1,17 @@
 'use client'
 
 import { useState, useEffect, use } from 'react'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
-import {
+import { db, auth } from '@/lib/firebase'
+import { 
+  doc, 
+  getDoc, 
+  getDocs, 
+  collection, 
+  query, 
+  where, 
+  orderBy 
+} from 'firebase/firestore'
+import { 
   BarChart3, Users, FileCheck, AlertCircle, Download, Printer,
   ChevronRight, TrendingUp, ShieldCheck, Zap, Clock, UserCircle, CheckCircle2, Circle, Timer, Search
 } from 'lucide-react'
@@ -46,57 +55,56 @@ export default function AnalyticsPage({ params }: { params: Promise<{ id: string
   const [tasks, setTasks] = useState<Task[]>([])
   const [taskSearch, setTaskSearch] = useState('')
   const [members, setMembers] = useState<ProfileDB[]>([])
-  const [artifacts, setArtifacts] = useState<Record<string, unknown>[]>([])
+  const [artifacts, setArtifacts] = useState<Record<string, any>[]>([])
   const [mounted, setMounted] = useState(false)
   const { onlineUsers } = usePresence()
-  const supabase = createBrowserSupabaseClient()
 
   useEffect(() => { 
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true)
-    // eslint-disable-next-line react-hooks/immutability
     fetchData() 
   }, [groupId])
 
   const fetchData = async () => {
     setLoading(true)
     
-    // 1. Get current user profile for membership verification
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser) return
+    const authUser = auth.currentUser
+    if (!authUser) {
+      setLoading(false)
+      return
+    }
 
     try {
-      const [profileData, groupData, tasksData, membersData, artifactsData] = await Promise.all([
-        supabase.from('profiles').select('*').eq('id', authUser.id).single(),
-        supabase.from('groups').select('*').eq('id', groupId).single(),
-        supabase.from('tasks').select('*').eq('group_id', groupId),
-        supabase.from('profiles').select('*').eq('group_id', groupId).order('total_score', { ascending: false }),
-        supabase.from('artifacts').select('*, tasks!inner(title, group_id)').eq('tasks.group_id', groupId)
+      const [profileSnap, groupSnap, tasksSnap, membersSnap, artifactsSnap] = await Promise.all([
+        getDoc(doc(db, 'profiles', authUser.uid)),
+        getDoc(doc(db, 'groups', groupId)),
+        getDocs(query(collection(db, 'tasks'), where('group_id', '==', groupId))),
+        getDocs(query(collection(db, 'profiles'), where('group_id', '==', groupId), orderBy('total_score', 'desc'))),
+        getDocs(query(collection(db, 'artifacts'), where('group_id', '==', groupId)))
       ])
 
-      if (profileData.error && profileData.error.code !== 'PGRST116') throw profileData.error
-      if (groupData.error) throw groupData.error
+      if (profileSnap.exists()) {
+        const userProfile = profileSnap.data() as Profile
+        setCurrentUser(userProfile)
+        const memberCheck = userProfile?.group_id === groupId
+        setIsMember(memberCheck)
+      }
 
-      const userProfile = profileData.data
-      setCurrentUser(userProfile)
+      if (groupSnap.exists()) {
+        setGroup({ id: groupSnap.id, ...groupSnap.data() } as Group)
+      }
       
-      // Check membership (using profile.group_id vs current page's groupId)
-      const memberCheck = userProfile?.group_id === groupId
-      setIsMember(memberCheck)
-
-      if (groupData.data) setGroup(groupData.data)
+      const memberCheck = (profileSnap.data() as Profile)?.group_id === groupId
       
-      // Only set full data if user is a member or admin (security layer in UI)
       if (memberCheck) {
-        if (tasksData.data) setTasks(tasksData.data)
-        if (membersData.data) setMembers(membersData.data)
-        setArtifacts(artifactsData.data || [])
+        setTasks(tasksSnap.docs.map(d => ({ id: d.id, ...d.data() } as Task)))
+        setMembers(membersSnap.docs.map(d => ({ id: d.id, ...d.data() } as ProfileDB)))
+        setArtifacts(artifactsSnap.docs.map(d => ({ id: d.id, ...d.data() })))
       } else {
-        // Restricted view: still show member count but hide task details
-        if (membersData.data) setMembers(membersData.data)
+        setMembers(membersSnap.docs.map(d => ({ id: d.id, ...d.data() } as ProfileDB)))
       }
     } catch (err: unknown) {
       console.error('Analytics Fetch Error:', err)
+      addToast('Sync Error', 'Failed to retrieve project intelligence.', 'error')
     } finally {
       setLoading(false)
     }
@@ -155,17 +163,30 @@ export default function AnalyticsPage({ params }: { params: Promise<{ id: string
   // --- EXPORT ---
   const exportToCSV = async () => {
     setLoading(true)
-    const { data: logs } = await supabase.from('activity_log').select('*, profiles(full_name)').eq('group_id', groupId).order('created_at', { ascending: false })
-    const headers = ['Type', 'User', 'Description', 'Timestamp']
-    const rows = (logs || []).map(l => [l.action_type, (l.profiles as { full_name?: string } | null)?.full_name || 'System', l.description, l.created_at])
-    const csvContent = [headers, ...rows].map(e => e.map(c => `"${c}"`).join(',')).join('\n')
-    setLoading(false)
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.setAttribute('href', url)
-    link.setAttribute('download', `Espeezy_${group?.module_code || 'Report'}_${new Date().toISOString().split('T')[0]}.csv`)
-    document.body.appendChild(link); link.click(); document.body.removeChild(link)
+    try {
+      const logsSnap = await getDocs(query(
+        collection(db, 'activity_log'), 
+        where('group_id', '==', groupId), 
+        orderBy('created_at', 'desc')
+      ))
+      const headers = ['Type', 'User', 'Description', 'Timestamp']
+      const rows = logsSnap.docs.map(doc => {
+        const l = doc.data()
+        return [l.action_type, l.user_name || 'System', l.description, l.created_at]
+      })
+      const csvContent = [headers, ...rows].map(e => e.map(c => `"${c}"`).join(',')).join('\n')
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.setAttribute('href', url)
+      link.setAttribute('download', `Espeezy_${group?.module_code || 'Report'}_${new Date().toISOString().split('T')[0]}.csv`)
+      document.body.appendChild(link); link.click(); document.body.removeChild(link)
+    } catch (err) {
+      console.error('Export error:', err)
+      addToast('System Error', 'Failed to generate intelligence report.', 'error')
+    } finally {
+      setLoading(false)
+    }
   }
 
   if (loading) return (
