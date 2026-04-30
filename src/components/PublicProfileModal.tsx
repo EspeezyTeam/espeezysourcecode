@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react'
-import { db, createBrowserSupabaseClient } from '@/lib/db-client'
 import type { Profile } from '@/types/auth'
 import ChatRoom from './ChatRoom'
 import { getUnicodeFlag } from '@/utils/geo'
