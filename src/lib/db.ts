@@ -245,7 +245,7 @@ export const db = {
       return { error: null as any }
     }
   },
-  storage: {
+  firebase: {
     from: (bucket: string) => ({
       getPublicUrl: (path: string) => {
         return { data: { publicUrl: path } }

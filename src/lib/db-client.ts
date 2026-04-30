@@ -1,4 +1,4 @@
-import { auth as firebaseAuth, db as firebaseDb, storage as firebaseStorage } from './firebase'
+import { auth as firebaseAuth, db as firebaseDb, firebase as firebaseStorage } from './firebase'
 import {
   addDoc,
   collection,
