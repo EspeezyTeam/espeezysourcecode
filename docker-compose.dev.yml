@@ -7,6 +7,7 @@
 #
 # Usage:
 #   docker compose -f docker-compose.dev.yml up -d
+#   docker compose -f docker-compose.dev.yml --profile edge up -d
 #   docker compose -f docker-compose.dev.yml logs -f app
 #   docker compose -f docker-compose.dev.yml restart app
 #
@@ -26,9 +27,12 @@ services:
     container_name: Espeezy_App
     restart: unless-stopped
     command: >
-      sh -c "if [ ! -d /app/node_modules/firebase ]; then
-      echo '[boot] firebase module missing in volume; reinstalling dependencies...';
-      npm install --prefer-offline --legacy-peer-deps;
+      sh -c "LOCK_HASH=\"$$(sha256sum /app/package-lock.json | awk '{print $$1}')\";
+      INSTALLED_HASH=\"$$(cat /app/node_modules/.package-lock.hash 2>/dev/null || true)\";
+      if [ ! -d /app/node_modules ] || [ \"$$LOCK_HASH\" != \"$$INSTALLED_HASH\" ]; then
+      echo '[boot] dependency drift detected; running npm ci...';
+      npm ci --prefer-offline --legacy-peer-deps;
+      echo \"$$LOCK_HASH\" > /app/node_modules/.package-lock.hash;
       fi;
       npm run dev"
     ports:
@@ -63,6 +67,8 @@ services:
   caddy:
     image: caddy:2-alpine
     container_name: espeezy_caddy_cache
+    profiles:
+      - edge
     restart: unless-stopped
     ports:
       - "80:80"
