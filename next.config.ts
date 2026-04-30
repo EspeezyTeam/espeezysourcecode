@@ -40,11 +40,7 @@ const nextConfig: NextConfig = {
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
         ]
       : []
-    return [
-      {
-        source: '/(.*)',
-        headers: securityHeaders,
-      },
+    const routes = [
       {
         source: '/api/health',
         headers: [{ key: 'Cache-Control', value: 'public, s-maxage=10, stale-while-revalidate=30' }],
@@ -59,6 +55,15 @@ const nextConfig: NextConfig = {
         headers: [{ key: 'Cache-Control', value: 'public, max-age=0, must-revalidate' }],
       },
     ]
+
+    if (securityHeaders.length > 0) {
+      routes.unshift({
+        source: '/(.*)',
+        headers: securityHeaders,
+      })
+    }
+
+    return routes
   },
 
   // Explicit webpack config ensures Next.js uses webpack (not Turbopack) for
