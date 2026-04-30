@@ -1,7 +1,9 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react'
-import { createBrowserSupabaseClient } from '@/utils/supabase/client'
+import { auth, db } from '@/lib/firebase'
+import { onAuthStateChanged, User } from 'firebase/auth'
+import { doc, getDoc, onSnapshot } from 'firebase/firestore'
 import { PersistentCache } from '@/utils/cache'
 import { Profile } from '@/types/auth'
 
@@ -16,74 +18,73 @@ export const ProfileContext = createContext<ProfileContextType | undefined>(unde
 
 export function ProfileProvider({ 
   children, 
-  userId,
+  userId: initialUserId,
   initialProfile 
 }: { 
   children: ReactNode
-  userId: string
-  initialProfile: Profile | null
+  userId?: string
+  initialProfile?: Profile | null
 }) {
   const [profile, setProfile] = useState<Profile | null>(() => {
     if (initialProfile) return initialProfile
-    return PersistentCache.get<Profile>(`profile_${userId}`)
+    return initialUserId ? PersistentCache.get<Profile>(`profile_${initialUserId}`) : null
   })
-  const [loading, setLoading] = useState(!initialProfile && !profile)
-  const supabase = createBrowserSupabaseClient()
+  const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState<User | null>(null)
 
   const refreshProfile = useCallback(async () => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*, groups(*)')
-      .eq('id', userId)
-      .single()
-    if (data) {
+    const currentUserId = user?.uid || initialUserId
+    if (!currentUserId) return
+
+    const docRef = doc(db, 'profiles', currentUserId)
+    const docSnap = await getDoc(docRef)
+    
+    if (docSnap.exists()) {
+      const data = docSnap.data() as Profile
       setProfile(data)
-      PersistentCache.set(`profile_${userId}`, data, 3600000) // 1 Hour TTL
+      PersistentCache.set(`profile_${currentUserId}`, data, 3600000) // 1 Hour TTL
     }
-  }, [supabase, userId])
+  }, [user, initialUserId])
 
   useEffect(() => {
-    if (!userId) return
-
-    let isMounted = true
-
-    const initializeProfile = async () => {
-      // Ensure we have current data if initial was partial or missing (crucially check for 'id')
-      if (!profile || !profile.id) {
-        await refreshProfile()
-      }
-      if (isMounted) {
+    const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser)
+      if (!firebaseUser) {
+        setProfile(null)
         setLoading(false)
       }
+    })
+
+    return () => unsubscribeAuth()
+  }, [])
+
+  useEffect(() => {
+    const currentUserId = user?.uid || initialUserId
+    if (!currentUserId) {
+      setLoading(false)
+      return
     }
 
-    initializeProfile()
+    setLoading(true)
+    
+    // Subscribe to REALTIME changes for the current user profile in Firestore
+    const docRef = doc(db, 'profiles', currentUserId)
+    const unsubscribeSnapshot = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data() as Profile
+        setProfile(data)
+        PersistentCache.set(`profile_${currentUserId}`, data, 3600000)
+      } else {
+        setProfile(null)
+      }
+      setLoading(false)
+    }, (error) => {
+      console.error("Profile snapshot error:", error)
+      setLoading(false)
+    })
 
-    // Subscribe to REALTIME changes for the current user profile
-    const channel = supabase
-      .channel(`profile_sync_${userId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'profiles',
-          filter: `id=eq.${userId}`
-        },
-        () => {
-          // Instead of raw overprinting, trigger a full joined refetch
-          if (isMounted) {
-            refreshProfile()
-          }
-        }
-      )
-      .subscribe()
-
-    return () => {
-      isMounted = false
-      supabase.removeChannel(channel)
-    }
-  }, [userId, profile, refreshProfile, supabase])
+    return () => unsubscribeSnapshot()
+  }, [user, initialUserId])
 
   return (
     <ProfileContext.Provider value={{ profile, loading, refreshProfile, setProfile }}>
