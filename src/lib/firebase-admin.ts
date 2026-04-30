@@ -1,4 +1,5 @@
 import admin from 'firebase-admin'
+import { getFirestore } from 'firebase-admin/firestore'
 import { existsSync, readFileSync } from 'fs'
 
 type ServiceAccountShape = {
@@ -153,9 +154,23 @@ function initAdmin() {
   }
 }
 
+function getConfiguredFirestoreDatabaseId() {
+  const candidates = [process.env.FIREBASE_DATABASE_ID, process.env.NEXT_PUBLIC_FIREBASE_DATABASE_ID]
+
+  for (const candidate of candidates) {
+    const normalized = candidate?.trim()
+    if (!normalized || normalized === '(default)') continue
+    return normalized
+  }
+
+  return null
+}
+
 export const getAdminDb = () => {
   if (!initAdmin()) return null
-  return admin.firestore()
+  const app = admin.app()
+  const databaseId = getConfiguredFirestoreDatabaseId()
+  return databaseId ? getFirestore(app, databaseId) : getFirestore(app)
 }
 
 export const getAdminAuth = () => {

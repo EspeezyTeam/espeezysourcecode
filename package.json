@@ -12,6 +12,8 @@
     "lint": "eslint",
     "test": "playwright test",
     "test:critical": "playwright test tests/critical.spec.ts",
+    "firebase:migrate": "node ./scripts/migrate-firestore-schema.mjs",
+    "firebase:migrate:dry": "node ./scripts/migrate-firestore-schema.mjs --dry-run --verbose",
     "deploy:resilient": "bash ./scripts/deploy-resilient.sh",
     "deploy:edge": "bash ./scripts/deploy-resilient.sh --with-edge",
     "deploy:app-only": "bash ./scripts/deploy-resilient.sh --no-edge"
