@@ -1,6 +1,5 @@
-const CACHE_NAME = 'espeezy-v1';
+const CACHE_NAME = 'espeezy-v2';
 const ASSETS_TO_CACHE = [
-  '/',
   '/favicon.png',
   '/pwa-icon-192.png',
   '/pwa-icon-512.png',
