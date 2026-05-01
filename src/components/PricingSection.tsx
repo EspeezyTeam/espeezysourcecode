@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Shield, Sparkles, CheckCircle2, Check, ArrowRight, Loader2, Key, Zap, Crown, Rocket } from 'lucide-react'
+import { Shield, Sparkles, CheckCircle2, ArrowRight, Loader2, Key, Zap, Crown, Rocket } from 'lucide-react'
 import { db, auth } from '@/lib/firebase'
 import { collection, query, where, getCountFromServer } from 'firebase/firestore'
 import { onAuthStateChanged, User } from 'firebase/auth'
@@ -16,7 +16,6 @@ export default function PricingSection({ showTitle = true, isLanding = false }: 
   const [error, setError] = useState<string | null>(null)
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null)
   const [lifetimeSeatsUsed, setLifetimeSeatsUsed] = useState<number | null>(null)
-  const [proCount, setProCount] = useState<number | null>(null)
   const [coupon, setCoupon] = useState('')
   const [discountActive, setDiscountActive] = useState(false)
   const [validatingCoupon, setValidatingCoupon] = useState(false)
@@ -33,20 +32,13 @@ export default function PricingSection({ showTitle = true, isLanding = false }: 
     const fetchCounts = async () => {
       try {
         const lifetimeQuery = query(collection(db, 'profiles'), where('subscription_plan', '==', 'lifetime'))
-        const proQuery = query(collection(db, 'profiles'), where('subscription_plan', '==', 'pro'))
-        
-        const [lifetimeSnapshot, proSnapshot] = await Promise.all([
-          getCountFromServer(lifetimeQuery),
-          getCountFromServer(proQuery)
-        ])
+        const lifetimeSnapshot = await getCountFromServer(lifetimeQuery)
 
         setLifetimeSeatsUsed(lifetimeSnapshot.data().count || 0)
-        setProCount(proSnapshot.data().count || 0)
       } catch (err) {
         console.error('Error fetching counts:', err)
         // Fallback to mock if it fails during migration
         setLifetimeSeatsUsed(12)
-        setProCount(42)
       }
     }
     fetchCounts()
@@ -291,11 +283,11 @@ export default function PricingSection({ showTitle = true, isLanding = false }: 
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem', marginBottom: '2.5rem', flexWrap: 'wrap' }}>
                 {discountActive ? (
                   <>
-                    <span style={{ fontSize: '4rem', fontWeight: 950, color: 'white', letterSpacing: '-0.04em' }}>£2.79</span>
-                    <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 800, fontSize: '1.5rem', textDecoration: 'line-through' }}>£3.99</span>
+                    <span style={{ fontSize: '4rem', fontWeight: 950, color: 'white', letterSpacing: '-0.04em' }}>£3.49</span>
+                    <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 800, fontSize: '1.5rem', textDecoration: 'line-through' }}>£4.99</span>
                   </>
                 ) : (
-                  <span style={{ fontSize: '4rem', fontWeight: 950, color: 'white', letterSpacing: '-0.04em' }}>£3.99</span>
+                  <span style={{ fontSize: '4rem', fontWeight: 950, color: 'white', letterSpacing: '-0.04em' }}>£4.99</span>
                 )}
                 <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 800, fontSize: '0.9rem' }}>/mo</span>
               </div>
@@ -338,6 +330,86 @@ export default function PricingSection({ showTitle = true, isLanding = false }: 
             disabled={loadingPlan !== null}
           >
             {loadingPlan === 'pro' ? 'SYNCING...' : `Upgrade to Pro`}
+          </button>
+        </div>
+
+        {/* PREMIUM TIER */}
+        <div style={{
+          padding: '3.5rem 2.5rem',
+          borderRadius: '40px',
+          background: 'rgba(99, 102, 241, 0.03)',
+          border: '2px solid rgba(99, 102, 241, 0.5)',
+          backdropFilter: 'blur(30px)',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          transition: 'all 0.4s ease',
+          position: 'relative',
+          boxShadow: '0 20px 40px rgba(0,0,0,0.35)'
+        }} className="premium-pricing-card">
+          <div style={{ position: 'absolute', top: '24px', right: '24px', padding: '6px 12px', background: 'linear-gradient(135deg, #6366f1 0%, #10b981 100%)', color: 'white', borderRadius: '100px', fontSize: '0.65rem', fontWeight: 950, letterSpacing: '1px' }}>POWER USER</div>
+
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3rem' }}>
+              <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #6366f1 0%, #10b981 100%)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Shield size={28} />
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 950, color: 'white' }}>Premium</h2>
+                <p style={{ margin: 0, color: '#8b8cf8', fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase' }}>Full Scale Access</p>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '3rem' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem', marginBottom: '2.5rem', flexWrap: 'wrap' }}>
+                {discountActive ? (
+                  <>
+                    <span style={{ fontSize: '4rem', fontWeight: 950, color: 'white', letterSpacing: '-0.04em' }}>£10.49</span>
+                    <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 800, fontSize: '1.5rem', textDecoration: 'line-through' }}>£14.99</span>
+                  </>
+                ) : (
+                  <span style={{ fontSize: '4rem', fontWeight: 950, color: 'white', letterSpacing: '-0.04em' }}>£14.99</span>
+                )}
+                <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 800, fontSize: '0.9rem' }}>/mo</span>
+              </div>
+              <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.85rem', lineHeight: 1.6, marginBottom: '2rem', fontWeight: 600 }}>
+                For teams and student leaders running large, high-stakes collaboration workflows with advanced controls and dedicated execution capacity.
+              </p>
+              <ul style={{ padding: 0, margin: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                {[
+                  'Everything in Pro Scholar',
+                  'Premium AI quota and faster responses',
+                  'Advanced governance and role controls',
+                  'Priority queue on heavy collaboration periods',
+                  '10GB encrypted cloud storage',
+                  'Dedicated onboarding and support lane'
+                ].map((f, i) => (
+                  <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem', fontSize: '0.9rem', color: 'rgba(255,255,255,0.95)', fontWeight: 700 }}>
+                    <CheckCircle2 size={16} style={{ color: '#8b8cf8', flexShrink: 0, marginTop: '3px' }} />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <button
+            style={{
+              width: '100%',
+              padding: '1.25rem',
+              borderRadius: '24px',
+              fontSize: '1rem',
+              fontWeight: 950,
+              background: 'linear-gradient(135deg, #6366f1 0%, #10b981 100%)',
+              color: 'white',
+              border: 'none',
+              boxShadow: '0 10px 30px rgba(99, 102, 241, 0.35)',
+              cursor: 'pointer'
+            }}
+            onClick={() => handleCheckout('premium')}
+            disabled={loadingPlan !== null}
+          >
+            {loadingPlan === 'premium' ? 'SYNCING...' : 'Upgrade to Premium'}
           </button>
         </div>
 
