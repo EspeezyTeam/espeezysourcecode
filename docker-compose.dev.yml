@@ -67,8 +67,6 @@ services:
   caddy:
     image: caddy:2-alpine
     container_name: espeezy_caddy_cache
-    profiles:
-      - edge
     restart: unless-stopped
     ports:
       - "80:80"

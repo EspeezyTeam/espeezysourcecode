@@ -60,11 +60,18 @@ fi
 if [ -f "docker-compose.dev.yml" ]; then
   RUNNING=$(docker inspect --format='{{.State.Running}}' Espeezy_App 2>/dev/null || echo "false")
   if [ "$RUNNING" != "true" ]; then
-    warn "App container is not running — restarting..."
+    warn "App container is not running — restarting full stack (app + caddy)..."
     docker compose -f docker-compose.dev.yml up -d
     info "Stack restarted."
   else
     info "App container is healthy."
+    # Ensure Caddy is also running (may have been profile-gated previously)
+    CADDY_RUNNING=$(docker inspect --format='{{.State.Running}}' espeezy_caddy_cache 2>/dev/null || echo "false")
+    if [ "$CADDY_RUNNING" != "true" ]; then
+      warn "Caddy container not running — starting..."
+      docker compose -f docker-compose.dev.yml up -d caddy
+      info "Caddy started."
+    fi
   fi
 fi
 

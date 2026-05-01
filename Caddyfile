@@ -1,23 +1,25 @@
 ﻿# ──────────────────────────────────────────────────────────────────────────────
 # espeezy.com — Caddyfile
 #
-# Set env var CADDY_DOMAIN before starting:
-#   export CADDY_DOMAIN=dev.espeezy.com
-#   docker compose -f docker-compose.dev.yml up -d
+# Required env vars (set in .env.local or shell before docker compose up):
+#   CADDY_DOMAIN=espeezy.com          — apex domain
 #
-# For a raw IP (no domain), set CADDY_DOMAIN to your VPS IP.
-# Caddy auto-provisions Let's Encrypt TLS for real domains — nothing else needed.
+# Optional:
+#   For a raw IP (no domain), set CADDY_DOMAIN to your VPS IP.
+#
+# Architecture:
+#   [User browser]
+#       → prereg.espeezy.com / espeezy.com (DNS → VPS IP)
+#       → Caddy (ports 80/443, auto-TLS via Let's Encrypt)
+#       → Next.js app (container: app, port 3000)
+#       → Firebase Firestore (espeezydb)
+#       → Firestore real-time push → user browser
 # ──────────────────────────────────────────────────────────────────────────────
 
-{$CADDY_DOMAIN}, www.{$CADDY_DOMAIN} {
-    # Canonical host: always serve apex domain
-    @www host www.{$CADDY_DOMAIN}
-    redir @www https://{$CADDY_DOMAIN}{uri} 308
-
-    # ── Compression ──────────────────────────────────────────────────────────
+# ── Shared proxy snippet ──────────────────────────────────────────────────────
+(espeezy_proxy) {
     encode zstd gzip
 
-    # ── Security headers ─────────────────────────────────────────────────────
     header {
         X-Content-Type-Options nosniff
         X-Frame-Options DENY
@@ -26,30 +28,39 @@
         -Server
     }
 
-    # ── WebSocket passthrough (Next.js HMR + Supabase Realtime) ──────────────
+    # WebSocket passthrough (Next.js HMR + Firebase real-time)
     @websockets {
         header Connection *Upgrade*
         header Upgrade websocket
     }
     reverse_proxy @websockets app:3000
 
-    # ── All other traffic → Next.js ───────────────────────────────────────────
     reverse_proxy app:3000 {
         header_up Host {host}
         header_up X-Real-IP {remote_host}
         header_up X-Forwarded-For {remote_host}
         header_up X-Forwarded-Proto {scheme}
-        # Health check so Caddy waits for the app to be ready
         health_uri /
         health_interval 15s
         health_timeout 5s
     }
 
-    # ── Access logging ────────────────────────────────────────────────────────
     log {
         output file /data/access.log {
             roll_size 20mb
             roll_keep 5
         }
     }
+}
+
+# ── Apex domain: espeezy.com (+ www redirect) ─────────────────────────────────
+{$CADDY_DOMAIN}, www.{$CADDY_DOMAIN} {
+    @www host www.{$CADDY_DOMAIN}
+    redir @www https://{$CADDY_DOMAIN}{uri} 308
+    import espeezy_proxy
+}
+
+# ── Pre-registration subdomain: prereg.espeezy.com ────────────────────────────
+prereg.espeezy.com {
+    import espeezy_proxy
 }

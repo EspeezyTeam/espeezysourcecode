@@ -2,7 +2,7 @@
 # espeezy.com — Cloud Dev Container
 # Next.js 16 · Node 20 Alpine · Hot Reload via volume mount
 # ──────────────────────────────────────────────────────────────────────────────
-FROM node:20-alpine AS dev
+FROM node:24-alpine AS dev
 
 # Required for some native deps (canvas, sharp, etc.)
 RUN apk add --no-cache libc6-compat python3 make g++
