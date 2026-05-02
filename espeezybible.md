@@ -235,7 +235,7 @@ gh run watch
 ### Bash
 
 ```bash
-curl -I https://prereg.espeezy.com
+curl -I https://espeezy.com/preregister
 curl -I https://espeezy.com
 curl -I https://espeezy.com/terms
 curl -I https://espeezy.com/privacy
