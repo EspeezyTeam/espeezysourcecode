@@ -44,15 +44,21 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
   ]
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0a0a0a', color: '#f3f4f6' }}>
+    <div className="docs-container">
       
+      {/* Mobile Backdrop */}
+      {isSidebarOpen && (
+        <div 
+          onClick={() => setIsSidebarOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
+            backdropFilter: 'blur(4px)', zIndex: 850
+          }}
+        />
+      )}
+
       {/* Search Header */}
-      <header style={{ 
-        height: '64px', borderBottom: '1px solid #222', 
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 2rem', position: 'sticky', top: 0, zIndex: 1000,
-        background: 'rgba(10,10,10,0.8)', backdropFilter: 'blur(12px)'
-      }}>
+      <header className="docs-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
           <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', textDecoration: 'none', color: '#f3f4f6' }}>
             <div style={{ width: '28px', height: '28px', background: '#10b981', borderRadius: '6px' }} />
@@ -71,15 +77,10 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
         </div>
       </header>
 
-      <div style={{ display: 'flex', maxWidth: '1440px', margin: '0 auto' }}>
+      <div className="docs-layout">
         
         {/* Sidebar */}
-        <aside style={{ 
-          width: '280px', height: 'calc(100vh - 64px)', 
-          borderRight: '1px solid #222', padding: '2rem',
-          position: 'sticky', top: '64px',
-          overflowY: 'auto'
-        }} className="docs-sidebar">
+        <aside className={`docs-sidebar ${isSidebarOpen ? 'open' : ''}`}>
            {sections.map((section, idx) => (
              <div key={idx} style={{ marginBottom: '2.5rem' }}>
                 <h4 style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#6b7280', marginBottom: '1rem' }}>
@@ -116,33 +117,98 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
         </aside>
 
         {/* Content */}
-        <main style={{ flex: 1, padding: '3rem 4rem', maxWidth: '900px' }} className="docs-main">
-           {children}
+        <main className="docs-main">
+           <div className="docs-content-inner">
+             {children}
+           </div>
         </main>
       </div>
 
       <style jsx>{`
-        .docs-link:hover { color: #f3f4f6 !important; }
-        
+        .docs-container {
+          min-height: 100vh;
+          background: #0a0a0a;
+          color: #f3f4f6;
+        }
+
+        .docs-header {
+          height: 64px;
+          border-bottom: 1px solid #222;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 2rem;
+          position: sticky;
+          top: 0;
+          z-index: 1000;
+          background: rgba(10,10,10,0.8);
+          backdrop-filter: blur(12px);
+        }
+
+        .docs-layout {
+          display: flex;
+          max-width: 1440px;
+          margin: 0 auto;
+          position: relative;
+        }
+
+        .docs-sidebar {
+          width: 280px;
+          height: calc(100vh - 64px);
+          border-right: 1px solid #222;
+          padding: 2rem;
+          position: sticky;
+          top: 64px;
+          overflow-y: auto;
+          background: #0a0a0a;
+        }
+
+        .docs-main {
+          flex: 1;
+          min-width: 0;
+          padding: 3rem 4rem;
+        }
+
+        .docs-content-inner {
+          max-width: 900px;
+        }
+
+        .docs-link:hover {
+          color: #f3f4f6 !important;
+        }
+
         @media (max-width: 1024px) {
+          .docs-header {
+            padding: 0 1.5rem;
+          }
+
           .docs-sidebar {
             position: fixed;
-            left: ${isSidebarOpen ? '0' : '-100%'};
-            top: 64px;
-            bottom: 0;
-            background: #0a0a0a;
+            left: -100%;
             z-index: 900;
             transition: left 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-            width: 80%;
+            width: 280px;
+            max-width: 85%;
+            box-shadow: 20px 0 50px rgba(0,0,0,0.5);
           }
+
+          .docs-sidebar.open {
+            left: 0;
+          }
+
           .docs-main {
             padding: 2rem 1.5rem;
           }
-          .hide-desktop { display: block !important; }
+
+          .hide-desktop {
+            display: block !important;
+          }
         }
-        
+
         @media (min-width: 1025px) {
-          .hide-desktop { display: none !important; }
+          .hide-desktop {
+            display: none !important;
+          }
         }
       `}</style>
     </div>

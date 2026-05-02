@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from 'next/server'
-// Supabase shim removed during Firebase migration
-
+// ─── NEXT.JS MIDDLEWARE (OFFICIAL) ───────────────────────────────────────────
+// This replaces the custom server.js logic for Vercel portability.
+// It handles security headers, distributed rate limiting, and request filtering.
+//
 // ─── DISTRIBUTED RATE LIMITING ────────────────────────────────────────────────
 // Uses Upstash Redis sliding-window when UPSTASH_REDIS_REST_URL is configured
 // (production / all Vercel regions). Falls back to in-process buckets for local dev.
