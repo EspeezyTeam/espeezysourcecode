@@ -1,16 +1,14 @@
 import type { NextConfig } from 'next'
+import path from 'node:path'
 
 const nextConfig: NextConfig = {
   compress: true,
   poweredByHeader: false,
   allowedDevOrigins: ['prereg.espeezy.com'],
 
-
-  experimental: {},
-
-  // Silence the Next.js 16 Turbopack "webpack config but no turbopack config"
-  // warning so the default Turbopack production build succeeds cleanly.
-  turbopack: {},
+  // In Next.js 16, outputFileTracingRoot is a top-level property.
+  // This prevents "whole project" tracing warnings during the Turbopack build.
+  outputFileTracingRoot: path.join(/* turbopackIgnore: true */ process.cwd()),
 
   // ── Image optimisation ───────────────────────────────────────────────────
   images: {
@@ -64,12 +62,6 @@ const nextConfig: NextConfig = {
     }
 
     return routes
-  },
-
-  // Explicit webpack config ensures Next.js uses webpack (not Turbopack) for
-  // production builds, avoiding workspace-root inference issues.
-  webpack(config) {
-    return config
   },
 
   typescript: { ignoreBuildErrors: false },
