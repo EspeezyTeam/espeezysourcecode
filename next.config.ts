@@ -17,11 +17,11 @@ const nextConfig: NextConfig = {
     deviceSizes: [640, 750, 828, 1080, 1200, 1920],
     imageSizes: [16, 32, 64, 96, 128, 256],
     remotePatterns: [
-      { protocol: 'https', hostname: 'othntbcrtmemavfsslrb.supabase.co', pathname: '/storage/v1/object/public/**' },
+      { protocol: 'https', hostname: '*.espeezy.com' },
       { protocol: 'https', hostname: '*.githubusercontent.com' },
       { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
       { protocol: 'https', hostname: 'images.unsplash.com' },
-      { protocol: 'https', hostname: 'api.dicebear.com'},
+      { protocol: 'https', hostname: 'api.dicebear.com' },
     ],
   },
 
@@ -31,12 +31,12 @@ const nextConfig: NextConfig = {
     const isProduction = process.env.NODE_ENV === 'production'
     const securityHeaders = isProduction
       ? [
-          { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
-          { key: 'X-Frame-Options', value: 'DENY' },
-          { key: 'X-Content-Type-Options', value: 'nosniff' },
-          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
-        ]
+        { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
+        { key: 'X-Frame-Options', value: 'DENY' },
+        { key: 'X-Content-Type-Options', value: 'nosniff' },
+        { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+        { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+      ]
       : []
     const routes = [
       {
