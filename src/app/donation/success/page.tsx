@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Heart, CheckCircle2, ArrowRight, Sparkles } from 'lucide-react'
 
-export default function DonationSuccessPage() {
+function DonationSuccessContent() {
   const searchParams = useSearchParams()
   const [amount, setAmount] = useState<string | null>(null)
 
@@ -81,7 +81,7 @@ export default function DonationSuccessPage() {
             lineHeight: 1.6
           }}>
             {amount
-              ? `Your £${amount} contribution goes directly toward keeping Espeezy free and accessible for students everywhere.`
+              ? `Your $${amount} contribution goes directly toward keeping Espeezy free and accessible for students everywhere.`
               : 'Your contribution goes directly toward keeping Espeezy free and accessible for students everywhere.'}
           </p>
         </div>
@@ -141,3 +141,12 @@ export default function DonationSuccessPage() {
     </main>
   )
 }
+
+export default function DonationSuccessPage() {
+  return (
+    <Suspense fallback={null}>
+      <DonationSuccessContent />
+    </Suspense>
+  )
+}
+
