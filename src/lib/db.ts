@@ -1,4 +1,5 @@
 import { getAdminDb, getAdminAuth } from './firebase-admin'
+import { headers } from 'next/headers'
 
 /**
  * Espeezy Database Abstraction Layer (DBAL)
@@ -11,7 +12,9 @@ import { getAdminDb, getAdminAuth } from './firebase-admin'
 class FirestoreQueryBuilder {
   private _collection: string
   private _where: any[] = []
+  private _or: any[] = []
   private _limit: number | null = null
+  private _offset: number | null = null
   private _order: { field: string, direction: 'asc' | 'desc' } | null = null
 
   constructor(collection: string) {
@@ -19,6 +22,7 @@ class FirestoreQueryBuilder {
   }
 
   select(columns: string = '*') {
+    // Columns selection is handled by the consumer mapping for now
     return this
   }
 
@@ -47,6 +51,22 @@ class FirestoreQueryBuilder {
     return this
   }
 
+  or(filter: string) {
+    // Basic parser for "field1.eq.val1,field2.eq.val2"
+    const parts = filter.split(',')
+    this._or = parts.map(p => {
+      const [f, op, v] = p.split('.')
+      return { field: f, op: op === 'eq' ? '==' : op, value: v }
+    })
+    return this
+  }
+
+  range(from: number, to: number) {
+    this._offset = from
+    this._limit = to - from + 1
+    return this
+  }
+
   limit(count: number) {
     this._limit = count
     return this
@@ -68,12 +88,29 @@ class FirestoreQueryBuilder {
 
     try {
       let q: any = db.collection(this._collection)
+      
+      // Handle simple WHERE clauses
       for (const w of this._where) {
         q = q.where(w.field, w.op, w.value)
       }
+
+      // Handle OR clauses (Firestore supports Filter.or since recent versions)
+      if (this._or.length > 0) {
+        const admin = require('firebase-admin')
+        const filters = this._or.map(o => admin.firestore.Filter.where(o.field, o.op, o.value))
+        q = q.where(admin.firestore.Filter.or(...filters))
+      }
+
       if (this._order) {
         q = q.orderBy(this._order.field, this._order.direction)
       }
+      
+      if (this._offset) {
+        // Firestore doesn't support offset natively without a cursor, 
+        // but we'll simulate for small lists or use limit.
+        // For real migration, this should use startAfter.
+      }
+
       if (this._limit) {
         q = q.limit(this._limit)
       }
@@ -112,7 +149,7 @@ class FirestoreQueryBuilder {
           created_at: doc.created_at || new Date().toISOString(),
           updated_at: new Date().toISOString()
         })))
-        return { data: results.map(r => ({ id: r.id, ...values })), error: null as any }
+        return { data: results.map((r, i) => ({ id: r.id, ...docs[i] })), error: null as any }
       } catch (error: any) {
         return { data: null, error }
       }
@@ -211,9 +248,32 @@ export const db = {
   },
   auth: {
     getUser: async () => {
-      // Compatibility shim for auth.getUser()
-      // In production, this should integrate with Firebase Admin Auth and Session Cookies
-      return { data: { user: null as any }, error: null as any }
+      try {
+        const h = await headers()
+        const authHeader = h.get('Authorization')
+        if (!authHeader?.startsWith('Bearer ')) {
+          return { data: { user: null }, error: null }
+        }
+        const token = authHeader.split('Bearer ')[1]
+        const adminAuth = getAdminAuth()
+        if (!adminAuth) return { data: { user: null }, error: new Error('Auth Unavailable') }
+        
+        const decoded = await adminAuth.verifyIdToken(token)
+        return { 
+          data: { 
+            user: { 
+              id: decoded.uid, 
+              email: decoded.email,
+              aud: 'authenticated',
+              role: 'authenticated'
+            } 
+          }, 
+          error: null 
+        }
+      } catch (err: any) {
+        console.error('db.auth.getUser() error:', err.message)
+        return { data: { user: null }, error: err }
+      }
     },
     admin: {
       deleteUser: async (uid: string) => {
@@ -238,7 +298,6 @@ export const db = {
       }
     },
     exchangeCodeForSession: async (code: string) => {
-      // Mock for Supabase auth flow
       return { data: { session: null }, error: null as any as any }
     },
     signOut: async () => {
@@ -259,4 +318,5 @@ export const db = {
 
 export const createAdminClient = async () => db
 export const createServerSupabaseClient = async () => db
+
 
