@@ -426,7 +426,7 @@ export default function PreRegisterPage() {
           <div style={{ marginBottom: '2.5rem', maxWidth: '600px' }}>
             <h3 style={{ color: 'white', fontWeight: 800, fontSize: '1.1rem', marginBottom: '0.75rem' }}>About the Project</h3>
             <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem', lineHeight: 1.6 }}>
-              Hey there! We're building Espeezy to make student collaboration fairer and completely stress-free. It's an open, fast, and secure platform powered by modern technologies like Next.js and Supabase. By signing up now with your email, you help us understand how many students need this, which speeds up our development. We promise no spam—just early access!
+              Hey there! We&apos;re building Espeezy to make student collaboration fairer and completely stress-free. It&apos;s an open, fast, and secure platform powered by modern technologies like Next.js and Firebase. By signing up now with your email, you help us understand how many students need this, which speeds up our development. We promise no spam—just early access!
             </p>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '2rem' }}>

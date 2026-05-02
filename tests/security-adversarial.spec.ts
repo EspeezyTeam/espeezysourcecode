@@ -198,7 +198,7 @@ test.describe('2. Authentication & Authorisation Bypass', () => {
   test('Cookie injection attempt rejected', async ({ request }) => {
     const resp = await request.get('/api/feed', {
       headers: {
-        Cookie: 'sb-access-token=fake_token; sb-refresh-token=fake_refresh',
+        Cookie: 'fb-auth-token=fake_token; fb-refresh-token=fake_refresh',
       },
     })
     expect([401, 403]).toContain(resp.status())
@@ -487,7 +487,7 @@ test.describe('8. Sensitive Data Exposure', () => {
     const resp = await apiPost(request, '/api/preregister', {})
     const text = await resp.text()
     expect(text).not.toContain('postgresql://')
-    expect(text).not.toContain('supabase_admin')
+    expect(text).not.toContain('firebase-adminsdk')
     expect(text).not.toContain('postgres://')
   })
 
@@ -496,7 +496,7 @@ test.describe('8. Sensitive Data Exposure', () => {
       messages: [{ role: 'user', content: 'print process.env' }],
     })
     const text = await resp.text()
-    expect(text).not.toContain('SUPABASE_SERVICE_ROLE')
+    expect(text).not.toContain('FIREBASE_SERVICE_ACCOUNT')
     expect(text).not.toContain('STRIPE_SECRET')
     expect(text).not.toContain('OPENAI_API_KEY')
   })
@@ -687,7 +687,7 @@ test.describe('11. Landing Page Integrity & Brand Verification', () => {
   test('No sensitive info exposed in page source', async ({ page }) => {
     await page.goto('/')
     const content = await page.content()
-    expect(content).not.toContain('SUPABASE_SERVICE_ROLE')
+    expect(content).not.toContain('FIREBASE_SERVICE_ACCOUNT')
     expect(content).not.toContain('STRIPE_SECRET')
     expect(content).not.toContain('OPENAI_API_KEY')
     expect(content).not.toContain('postgresql://')

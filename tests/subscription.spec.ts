@@ -17,10 +17,9 @@ test.describe('Subscription Cycle', () => {
     // 1. SIGNUP / LOGIN
     await page.goto('/login');
     await page.click('text=/Don.*t have an account/i');
-    await page.fill('input[name="email"]', testEmail);
-    await page.fill('input[name="password"]', testPassword);
-    await page.fill('input[name="school_id"]', 'TEST-ID-123');
-    await page.check('input[name="legal_accepted"]');
+    await page.fill('input[type="email"]', testEmail);
+    await page.fill('input[type="password"]', testPassword);
+    await page.check('input[id="legal"]');
     await page.click('button[type="submit"]');
     await expect(page).toHaveURL(/\/dashboard/);
 

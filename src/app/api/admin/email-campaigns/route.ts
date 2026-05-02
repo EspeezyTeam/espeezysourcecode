@@ -1,31 +1,24 @@
 import { NextResponse } from 'next/server'
-import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
+import { getAdminDb } from '@/lib/firebase-admin'
+import { getAuthUser, getUserProfile } from '@/utils/auth-server'
 import { sendEmail } from '@/services/email'
 import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
 
 const DEFAULT_NOTIFICATION_MESSAGE = 'New announcement from Espeezy.'
-// Cap the per-address error sample returned to the client to avoid huge payloads
 const MAX_ERROR_SAMPLE_SIZE = 10
 
 // ── Auth helper ──────────────────────────────────────────────────────────────
 async function requireAdmin() {
-  const db = await createServerSupabaseClient()
-  const { data: { user } } = await db.auth.getUser()
-    .catch(() => ({ data: { user: null } }))
+  const user = await getAuthUser()
   if (!user) return { user: null, error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
 
-  const { data: profile, error: profileErr } = await db
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  if (profileErr) {
-    return { user: null, error: NextResponse.json({ error: 'Failed to verify permissions', details: profileErr.message }, { status: 500 }) }
+  const profile = await getUserProfile(user.uid)
+  if (!profile) {
+    return { user: null, error: NextResponse.json({ error: 'Failed to verify permissions' }, { status: 500 }) }
   }
-  if (profile?.role !== 'admin') {
+  if ((profile as any).role !== 'admin') {
     return { user: null, error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
   }
   return { user, error: null }
@@ -36,15 +29,20 @@ export async function GET() {
   const { error } = await requireAdmin()
   if (error) return error
 
-  const admin = await createAdminClient()
-  const { data, error: dbErr } = await admin
-    .from('marketing_campaigns')
-    .select('id, title, subject, status, sent_count, created_at, sent_at')
-    .order('created_at', { ascending: false })
-    .limit(50)
+  const db = getAdminDb()
+  if (!db) return NextResponse.json({ error: 'Database not initialized' }, { status: 500 })
 
-  if (dbErr) return NextResponse.json({ error: dbErr.message }, { status: 500 })
-  return NextResponse.json({ campaigns: data })
+  try {
+    const snapshot = await db.collection('marketing_campaigns')
+      .orderBy('created_at', 'desc')
+      .limit(50)
+      .get()
+
+    const campaigns = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+    return NextResponse.json({ campaigns })
+  } catch (dbErr: any) {
+    return NextResponse.json({ error: dbErr.message }, { status: 500 })
+  }
 }
 
 // ── Schema ───────────────────────────────────────────────────────────────────
@@ -78,52 +76,49 @@ export async function POST(req: Request) {
   }
 
   const { title, subject, preview, html_body, text_body: rawTextBody } = parsed.data
-  // Derive plain-text fallback on the server so the client never has to strip HTML
   const text_body = rawTextBody ?? html_body.replace(/<[^>]*>/g, ' ').replace(/\s{2,}/g, ' ').trim()
-  const admin = await createAdminClient()
+  
+  const db = getAdminDb()
+  if (!db) return NextResponse.json({ error: 'Database not initialized' }, { status: 500 })
 
-  // 1. Insert campaign as 'sending'
-  const { data: campaign, error: insertErr } = await admin
-    .from('marketing_campaigns')
-    .insert({
+  let campaignId: string
+  try {
+    const campaignRef = await db.collection('marketing_campaigns').add({
       title, subject, preview, html_body, text_body,
       status: 'sending',
-      created_by: user!.id,
+      created_by: user!.uid,
+      created_at: new Date().toISOString()
     })
-    .select()
-    .single()
-
-  if (insertErr || !campaign) {
-    return NextResponse.json({ error: insertErr?.message ?? 'Insert failed' }, { status: 500 })
+    campaignId = campaignRef.id
+  } catch (insertErr: any) {
+    return NextResponse.json({ error: insertErr.message ?? 'Insert failed' }, { status: 500 })
   }
 
-  // 2. Fetch all opted-in users (marketing_emails = true)
-  const { data: recipients, error: recipientsErr } = await admin
-    .from('profiles')
-    .select('id, email, full_name')
-    .eq('marketing_emails', true)
-    .not('email', 'is', null)
-
-  if (recipientsErr) {
-    await admin
-      .from('marketing_campaigns')
-      .update({ status: 'failed' })
-      .eq('id', campaign.id)
+  // 2. Fetch all opted-in users
+  let list: Recipient[] = []
+  try {
+    const snapshot = await db.collection('profiles')
+      .where('marketing_emails', '==', true)
+      .get()
+    
+    list = snapshot.docs
+      .map(doc => ({ id: doc.id, email: doc.data().email, full_name: doc.data().full_name }))
+      .filter(r => !!r.email)
+  } catch (recipientsErr: any) {
+    await db.collection('marketing_campaigns').doc(campaignId).update({ status: 'failed' })
     return NextResponse.json({ error: recipientsErr.message ?? 'Failed to fetch recipients' }, { status: 500 })
   }
 
-  const list = (recipients ?? []) as Recipient[]
   let sentCount = 0
   const errors: string[] = []
 
-  // 3. Send emails in batches (avoid Vercel function timeout on huge lists)
+  // 3. Send emails in batches
   const BATCH = 20
   for (let i = 0; i < list.length; i += BATCH) {
     const batch = list.slice(i, i + BATCH)
     await Promise.allSettled(
       batch.map(async (r) => {
         try {
-          // Personalise the body with a plain-text unsubscribe note
           const personalHtml = `${html_body}
 <div style="margin-top:40px;padding-top:20px;border-top:1px solid #eee;font-size:12px;color:#999;text-align:center">
   You received this because you opted in to marketing updates.
@@ -143,7 +138,7 @@ export async function POST(req: Request) {
     )
   }
 
-  // 4. Insert persistent in-app notifications for opted-in users
+  // 4. Insert persistent in-app notifications
   if (list.length > 0) {
     const notifRows = list.map((r) => ({
       user_id: r.id,
@@ -152,20 +147,29 @@ export async function POST(req: Request) {
       message: preview ?? text_body?.slice(0, 160) ?? DEFAULT_NOTIFICATION_MESSAGE,
       link: null,
       read: false,
+      created_at: new Date().toISOString()
     }))
-    // Insert in chunks to stay within PostgREST request size limits
+
     for (let i = 0; i < notifRows.length; i += 500) {
-      const { error: notifErr } = await admin.from('notifications').insert(notifRows.slice(i, i + 500))
-      if (notifErr) {
-        // Notification insert failed — still mark campaign sent but surface the error
-        await admin
-          .from('marketing_campaigns')
-          .update({ status: 'sent', sent_count: sentCount, sent_at: new Date().toISOString() })
-          .eq('id', campaign.id)
+      const chunk = notifRows.slice(i, i + 500)
+      const batch = db.batch()
+      chunk.forEach(row => {
+        const ref = db.collection('notifications').doc()
+        batch.set(ref, row)
+      })
+      
+      try {
+        await batch.commit()
+      } catch (notifErr: any) {
+        await db.collection('marketing_campaigns').doc(campaignId).update({
+          status: 'sent',
+          sent_count: sentCount,
+          sent_at: new Date().toISOString()
+        })
         return NextResponse.json({
           error: 'Emails sent but notifications failed',
           details: notifErr.message,
-          campaign_id: campaign.id,
+          campaign_id: campaignId,
           sent_count: sentCount,
           total_recipients: list.length,
         }, { status: 500 })
@@ -175,24 +179,24 @@ export async function POST(req: Request) {
 
   // 5. Mark campaign sent
   const finalStatus = errors.length === list.length && list.length > 0 ? 'failed' : 'sent'
-  const { error: finalUpdateErr } = await admin
-    .from('marketing_campaigns')
-    .update({ status: finalStatus, sent_count: sentCount, sent_at: new Date().toISOString() })
-    .eq('id', campaign.id)
-
-  if (finalUpdateErr) {
+  try {
+    await db.collection('marketing_campaigns').doc(campaignId).update({
+      status: finalStatus,
+      sent_count: sentCount,
+      sent_at: new Date().toISOString()
+    })
+  } catch (finalUpdateErr: any) {
     return NextResponse.json({
       error: 'Failed to update campaign status',
       details: finalUpdateErr.message,
-      campaign_id: campaign.id,
+      campaign_id: campaignId,
       sent_count: sentCount,
       total_recipients: list.length,
     }, { status: 500 })
   }
 
-  // Return a bounded sample — not the full per-address error list
   return NextResponse.json({
-    campaign_id: campaign.id,
+    campaign_id: campaignId,
     sent_count: sentCount,
     total_recipients: list.length,
     errors_count: errors.length,

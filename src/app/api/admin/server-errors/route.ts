@@ -1,24 +1,18 @@
 import { NextResponse } from 'next/server'
-import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
+import { getAdminDb } from '@/lib/firebase-admin'
+import { getAuthUser, getUserProfile } from '@/utils/auth-server'
 
 export const dynamic = 'force-dynamic'
 
 async function requireAdmin() {
-  const db = await createServerSupabaseClient()
-  const { data: { user } } = await db.auth.getUser()
-    .catch(() => ({ data: { user: null } }))
+  const user = await getAuthUser()
   if (!user) return { user: null, error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
 
-  const { data: profile, error: profileErr } = await db
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  if (profileErr) {
-    return { user: null, error: NextResponse.json({ error: 'Failed to verify permissions', details: profileErr.message }, { status: 500 }) }
+  const profile = await getUserProfile(user.uid)
+  if (!profile) {
+    return { user: null, error: NextResponse.json({ error: 'Failed to verify permissions' }, { status: 500 }) }
   }
-  if (profile?.role !== 'admin') {
+  if ((profile as any).role !== 'admin') {
     return { user: null, error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
   }
   return { user, error: null }
@@ -29,13 +23,18 @@ export async function GET() {
   const { error } = await requireAdmin()
   if (error) return error
 
-  const admin = await createAdminClient()
-  const { data, error: dbErr } = await admin
-    .from('server_error_log')
-    .select('id, route, method, message, stack, user_id, metadata, created_at')
-    .order('created_at', { ascending: false })
-    .limit(100)
+  const db = getAdminDb()
+  if (!db) return NextResponse.json({ error: 'Database not initialized' }, { status: 500 })
 
-  if (dbErr) return NextResponse.json({ error: dbErr.message }, { status: 500 })
-  return NextResponse.json({ errors: data })
+  try {
+    const snapshot = await db.collection('server_error_log')
+      .orderBy('created_at', 'desc')
+      .limit(100)
+      .get()
+
+    const errors = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+    return NextResponse.json({ errors })
+  } catch (dbErr: any) {
+    return NextResponse.json({ error: dbErr.message }, { status: 500 })
+  }
 }

@@ -20,7 +20,7 @@ test.describe('Institutional Guards & Secret Gateway', () => {
 
   test('MFA Dynamic TOTP Challenge UI', async ({ page }) => {
     // This test verifies the visual integrity of the MFA stage
-    // Note: To test the actual logic, we would need to mock the Supabase Auth context
+    // Note: To test the actual logic, we would need to mock the Firebase Auth context
     // and provide a verified admin profile in a real CI environment.
     
     await page.goto('/terminal/orbit-delta-prime/gateway');

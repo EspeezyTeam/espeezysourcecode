@@ -26,12 +26,11 @@ test.describe('End-to-End: Espeezy Control Station', () => {
       // Navigate to Signup mode
       await p.click('text=/Don.*t have an account/i');
       
-      await p.fill('input[name="email"]', users[i].email);
-      await p.fill('input[name="password"]', users[i].password);
-      await p.fill('input[name="school_id"]', users[i].id);
+      await p.fill('input[type="email"]', users[i].email);
+      await p.fill('input[type="password"]', users[i].password);
       
       // Accept Terms
-      await p.check('input[name="legal_accepted"]');
+      await p.check('input[id="legal"]');
       
       await p.click('button[type="submit"]');
       

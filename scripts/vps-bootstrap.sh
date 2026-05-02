@@ -88,10 +88,10 @@ fi
 if [ ! -f "$APP_DIR/.env.local" ]; then
   info "Creating placeholder .env.local — FILL THIS IN before starting!"
   cat > "$APP_DIR/.env.local" <<'ENV'
-# ── Supabase ──────────────────────────────────────────────────────────────────
-NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_ANON_KEY
-SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY
+# ── Firebase ──────────────────────────────────────────────────────────────────
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
+NEXT_PUBLIC_FIREBASE_API_KEY=your-api-key
+FIREBASE_SERVICE_ACCOUNT_KEY=your-service-account-json
 
 # ── Stripe ────────────────────────────────────────────────────────────────────
 STRIPE_SECRET_KEY=sk_live_...

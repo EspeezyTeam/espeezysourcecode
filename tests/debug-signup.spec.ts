@@ -33,19 +33,14 @@ test('debug: signup only', async ({ page }) => {
 
   await page.waitForTimeout(1000)
   
-  // Check if school_id is visible
-  const schoolIdVisible = await page.locator('input[name="school_id"]').isVisible()
-  console.log(`school_id input visible: ${schoolIdVisible}`)
-  
   // Check what buttons exist
   const buttons = await page.locator('button').allTextContents()
   console.log(`Buttons on page: ${JSON.stringify(buttons)}`)
 
   // Fill signup form
-  await page.fill('input[name="email"]', EMAIL)
-  await page.fill('input[name="password"]', PASSWORD)
-  await page.fill('input[name="school_id"]', SCHOOL_ID)
-  await page.check('input[name="legal_accepted"]')
+  await page.fill('input[type="email"]', EMAIL)
+  await page.fill('input[type="password"]', PASSWORD)
+  await page.check('input[id="legal"]')
   console.log(`Form filled`)
 
   // Check buttons again

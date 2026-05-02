@@ -1,38 +1,50 @@
 import { NextResponse } from 'next/server'
-import { db, createAdminClient, createServerSupabaseClient } from '@/lib/db'
+import { getAdminDb } from '@/lib/firebase-admin'
+import { getAuthUser, getUserProfile } from '@/utils/auth-server'
+
 export const dynamic = 'force-dynamic'
 
-
 export async function GET() {
-  // Public endpoint — returns non-sensitive config needed by pre-reg page
-  const svc = await createAdminClient()
-  const { data } = await svc
-    .from('app_config')
-    .select('key, value')
-    .in('key', ['launch_date', 'launch_message', 'preregister_goal', 'preregister_open', 'brand_name'])
+  const db = getAdminDb()
+  if (!db) {
+    return NextResponse.json({ error: 'Database not initialized' }, { status: 500 })
+  }
 
-  const config: Record<string, string> = {}
-  for (const row of data ?? []) config[row.key] = row.value
-  return NextResponse.json({ config })
+  const keys = ['launch_date', 'launch_message', 'preregister_goal', 'preregister_open', 'brand_name']
+  const config: Record<string, any> = {}
+
+  try {
+    const snapshots = await Promise.all(
+      keys.map(key => db.collection('app_config').doc(key).get())
+    )
+
+    snapshots.forEach((doc, index) => {
+      if (doc.exists) {
+        config[keys[index]] = doc.data()?.value
+      }
+    })
+
+    return NextResponse.json({ config })
+  } catch (error) {
+    console.error('[launch-config] GET error:', error)
+    return NextResponse.json({ error: 'Failed to fetch configuration' }, { status: 500 })
+  }
 }
 
 export async function PUT(req: Request) {
-  // Admin-only write
-  const db = await createServerSupabaseClient()
-  const { data: { user }, error: authError } = await db.auth.getUser()
-  if (authError || !user) {
+  const user = await getAuthUser()
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const svc = await createAdminClient()
-  const { data: profile } = await svc
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile || profile.role !== 'admin') {
+  const profile = await getUserProfile(user.uid)
+  if (!profile || (profile as any).role !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const db = getAdminDb()
+  if (!db) {
+    return NextResponse.json({ error: 'Database not initialized' }, { status: 500 })
   }
 
   const updates: Array<{ key: string; value: string }> = await req.json()
@@ -43,18 +55,24 @@ export async function PUT(req: Request) {
   const ALLOWED_KEYS = ['launch_date', 'launch_message', 'preregister_goal', 'preregister_open', 'brand_name', 'platform_version']
   const filtered = updates.filter(u => ALLOWED_KEYS.includes(u.key) && typeof u.value === 'string')
 
-  const rows = filtered.map(u => ({
-    key: u.key,
-    value: u.value,
-    updated_at: new Date().toISOString(),
-    updated_by: user.id,
-  }))
+  try {
+    const batch = db.batch()
+    const now = new Date().toISOString()
 
-  const { error } = await svc.from('app_config').upsert(rows, { onConflict: 'key' })
-  if (error) {
-    console.error('[admin-config] upsert error:', error)
+    filtered.forEach(u => {
+      const ref = db.collection('app_config').doc(u.key)
+      batch.set(ref, {
+        key: u.key,
+        value: u.value,
+        updated_at: now,
+        updated_by: user.uid,
+      }, { merge: true })
+    })
+
+    await batch.commit()
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('[admin-config] batch update error:', error)
     return NextResponse.json({ error: 'Failed to save configuration.' }, { status: 500 })
   }
-
-  return NextResponse.json({ success: true })
 }
