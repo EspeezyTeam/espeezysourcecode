@@ -1,4 +1,4 @@
-﻿# ──────────────────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────────────────
 # espeezy.com — Cloud Dev Stack
 #
 # Services:
@@ -44,13 +44,16 @@ services:
       # with the (possibly empty) host directory
       - node_modules:/app/node_modules
       - next_cache:/app/.next
-    env_file:
-      - .env.local
     environment:
       WATCHPACK_POLLING: "true"
       CHOKIDAR_USEPOLLING: "true"
       POLL_INTERVAL: "1000"
       NODE_OPTIONS: "--max-old-space-size=2048"
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    networks:
+      - espeezy-net
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
       interval: 30s
@@ -78,6 +81,11 @@ services:
       - caddy_config:/config
     environment:
       CADDY_DOMAIN: "${CADDY_DOMAIN:-localhost}"
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    networks:
+      - espeezy-net
     depends_on:
       app:
         condition: service_healthy
@@ -87,15 +95,11 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # ── Watchtower — auto-pull & restart on new image pushes ─────────────────
-  # Uncomment if you push Docker images to a registry instead of bind-mounting
-  # watchtower:
-  #   image: containrrr/watchtower
-  #   container_name: espeezy_watchtower
-  #   restart: unless-stopped
-  #   volumes:
-  #     - /var/run/docker.sock:/var/run/docker.sock
-  #   command: --interval 60 --cleanup espeezy_app
+networks:
+  espeezy-net:
+    driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: 1460
 
 volumes:
   node_modules:

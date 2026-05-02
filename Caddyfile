@@ -59,8 +59,3 @@
     redir @www https://{$CADDY_DOMAIN}{uri} 308
     import espeezy_proxy
 }
-
-# ── Pre-registration subdomain: prereg.espeezy.com ────────────────────────────
-prereg.espeezy.com {
-    import espeezy_proxy
-}
