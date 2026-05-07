@@ -31,7 +31,9 @@ function useCountdown(targetDate: string): TimeLeft {
     }
   }, [targetDate])
 
-  const [timeLeft, setTimeLeft] = useState<TimeLeft>({ days: 0, hours: 0, minutes: 0, seconds: 0 })
+  const [timeLeft, setTimeLeft] = useState<TimeLeft>(() => (typeof window === 'undefined'
+    ? { days: 0, hours: 0, minutes: 0, seconds: 0 }
+    : calc()))
   useEffect(() => {
     const id = setInterval(() => setTimeLeft(calc()), 1000)
     return () => clearInterval(id)
