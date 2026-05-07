@@ -71,7 +71,7 @@ const CSP = [
   "img-src 'self' data: blob: https://*.githubusercontent.com https://lh3.googleusercontent.com https://images.unsplash.com",
   "font-src 'self' data:",
   "connect-src 'self' https://api.openai.com https://api.stripe.com https://*.vercel-insights.com https://vitals.vercel-insights.com https://va.vercel-scripts.com https://*.firebaseio.com https://*.googleapis.com",
-  "frame-src 'none'",
+  "frame-src 'self' https://vercel.live https://*.firebaseio.com https://*.firebasedatabase.app",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -167,7 +167,7 @@ export default async function middleware(request: NextRequest) {
   // ── 6. Supabase session refresh (fail-open for public availability) ──────
   // If Supabase/session refresh fails, keep public pages online so marketing
   // and business-verification crawlers can still access the site.
-  let response: NextResponse = NextResponse.next({ request })
+  const response: NextResponse = NextResponse.next({ request })
 
   // ── 7. Security + performance headers ────────────────────────────────────
   response.headers.set('Content-Security-Policy', CSP)
@@ -193,4 +193,3 @@ export const config = {
     '/((?!_next/static|_next/image|favicon.ico|assets|favicon.png|\\.well-known/workflow/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
-

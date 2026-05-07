@@ -31,7 +31,7 @@ function useCountdown(targetDate: string): TimeLeft {
     }
   }, [targetDate])
 
-  const [timeLeft, setTimeLeft] = useState<TimeLeft>(calc)
+  const [timeLeft, setTimeLeft] = useState<TimeLeft>({ days: 0, hours: 0, minutes: 0, seconds: 0 })
   useEffect(() => {
     const id = setInterval(() => setTimeLeft(calc()), 1000)
     return () => clearInterval(id)
@@ -446,7 +446,7 @@ export default function PreRegisterPage() {
               ))}
             </div>
             <p style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.2)', margin: 0 }}>
-              © {new Date().getFullYear()} {config.brand_name}. All rights reserved.
+              © <span suppressHydrationWarning>{new Date().getFullYear()}</span> {config.brand_name}. All rights reserved.
             </p>
           </div>
         </div>
